@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: j-kafka-stream-api
+  profiles:
+    include: swagger-info, cluster-configs
+
+  threads:
+    virtual:
+      enabled: true
+  messages:
+    basename: messages/messages
+    cache-duration: 3600
+    encoding: utf-8
+  web:
+    locale: en
+    locale-resolver: fixed
+
+server:
+  port: 8087
+  servlet:
+    context-path: /
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+  tomcat:
+    threads:
+      max: 2000
+    max-connections: 10000  # Max number of simultaneous connections
+    accept-count: 1000
+logging:
+  level:
+    com.trendyol.kafka.stream.api.service.manager.ConsumerPool: DEBUG
+    org.apache.kafka.common.telemetry.internals.KafkaMetricsCollector: ERROR
+    org.apache.kafka.clients.admin: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: stage
+
+logging:
+  pattern:
+    console: "{\"time\": \"%d{yyyy-MM-dd'T'HH:mm:ss}Z\", \"level\": \"%p\",\"project-id\":\"%X{x-project-id}\",\"cluster-id\":\"%X{x-cluster-id}\", \"correlation-id\": \"%X{x-correlationid}\", \"executor-user\": \"%X{x-executor-user}\", \"source\":\"%logger{63}:%L\", \"message\": \"%replace(%m%wEx{10}){'[\r\n]+', '\n'}%nopex\"}%n"
+  level:
+    ROOT: INFO
+    org.apache.kafka.clients.producer: ERROR
+    org.apache.kafka.clients.consumer: ERROR
+    org.apache.kafka.clients.admin: ERROR
+    org.apache.kafka.common.utils.AppInfoParser: ERROR
+    org.apache.kafka.common.telemetry.internals.KafkaMetricsCollector: ERROR

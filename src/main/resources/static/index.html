@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kafka UI</title>
+
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        a.nav-link.badge {
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+
+        body {
+            padding-top: 70px; /* Space for the fixed navbar */
+        }
+
+        .navbar-custom {
+            background-color: #343a40; /* Dark background */
+        }
+
+        .navbar-custom .navbar-brand,
+        .navbar-custom .navbar-nav .nav-link {
+            color: white; /* Text color for the nav items */
+        }
+
+        .container-fluid {
+            margin-top: 20px;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #dfe6e9;
+            background-color: white;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark navbar-custom fixed-top">
+    <a class="navbar-brand" href="#">Kafka UI</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+            aria-controls="navbarNav"
+            aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav mr-auto">
+            <li class="nav-item active">
+
+            </li>
+        </ul>
+
+        <form class="form-inline">
+            <label for="projectId"></label><input class="form-control mr-sm-2" type="text" id="projectId"
+                                                  placeholder="X-Project-ID" value="project-x" required>
+            <label for="clusterId"></label><input class="form-control mr-sm-2" type="text" id="clusterId"
+                                                  placeholder="X-Cluster-ID" value="local-cluster" required>
+        </form>
+    </div>
+</nav>
+
+<div class="container-fluid mt-5">
+    <div class="card m-5">
+        <div class="card-header">
+            <ul class="nav nav-tabs card-header-tabs" id="myTab" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link badge badge-info mr-2 active" id="paginated-topics-tab" data-toggle="tab"
+                       href="#paginated-topics" role="tab" aria-controls="paginated-topics"
+                       aria-selected="false">Topics</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link badge badge-info mr-2" id="topic-info-tab" data-toggle="tab" href="#topic-info"
+                       role="tab" aria-controls="topic-info" aria-selected="false">Topic Info</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link badge badge-success mr-2" id="consumer-group-ids-tab" data-toggle="tab"
+                       href="#consumer-group-ids" role="tab" aria-controls="consumer-group-ids" aria-selected="false">Consumer
+                        Groups</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link  badge badge-success mr-2" id="consumer-group-tab" data-toggle="tab"
+                       href="#consumer-group" role="tab" aria-controls="consumer-group" aria-selected="true">Consumer
+                        Group By Topic</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link badge badge-success mr-2" id="consumer-group-by-group-id-tab" data-toggle="tab"
+                       href="#consumer-group-by-group-id" role="tab" aria-controls="consumer-group-by-group-id"
+                       aria-selected="true">Consumer Group By Id</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link badge badge-primary mr-2" id="messages-tab" data-toggle="tab" href="#messages"
+                       role="tab" aria-controls="messages" aria-selected="false">Top Messages</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link badge badge-danger mr-2" id="change-offset-tab" data-toggle="tab"
+                       href="#change-offset" role="tab" aria-controls="change-offset" aria-selected="false">Change
+                        Offset</a>
+                </li>
+
+                <li class="nav-item">
+                    <a class="nav-link badge badge-secondary mr-2" id="consumer-lag-tab" data-toggle="tab"
+                       href="#consumer-lag" role="tab" aria-controls="consumer-lag" aria-selected="false">Consumer
+                        Lag</a>
+                </li>
+
+            </ul>
+        </div>
+
+        <div class="card-body tab-content" id="myTabContent">
+            <!-- Consumer Group Info Tab Topic-->
+            <div class="tab-pane fade show" id="consumer-group" role="tabpanel" aria-labelledby="consumer-group-tab">
+                <h5 class="card-title">Get Consumer Group Info by Topic</h5>
+                <div class="form-group">
+                    <input type="text" id="topicName" class="form-control" placeholder="Enter Kafka Topic Name"
+                           required>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="getConsumerGroupByTopic()">Get Info</button>
+                <div id="consumerGroupResult" class="result"></div>
+            </div>
+
+            <!-- Consumer Group Info Tab Group Id-->
+            <div class="tab-pane fade show" id="consumer-group-by-group-id" role="tabpanel"
+                 aria-labelledby="consumer-group-by-group-id-tab">
+                <h5 class="card-title">Get Consumer Group Info by Group Id</h5>
+                <div class="form-group">
+                    <input type="text" id="groupId" class="form-control" placeholder="Enter Kafka Group Id" required>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="getConsumerGroupByGroupId()">Get Info</button>
+                <div id="consumerGroupResult2" class="result"></div>
+            </div>
+
+            <!-- Top Messages Tab -->
+            <div class="tab-pane fade" id="messages" role="tabpanel" aria-labelledby="messages-tab">
+                <h5 class="card-title">Get Top Latest Kafka Messages</h5>
+                <div class="form-group">
+                    <input type="text" id="topicMessages" class="form-control" placeholder="Enter Kafka Topic Name"
+                           required>
+                </div>
+                <div class="form-group">
+                    <input type="number" id="maxMessages" class="form-control" placeholder="Enter Number of Messages"
+                           required>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="getTopLatestMessages()">Get Messages</button>
+                <div id="messagesResult" class="result"></div>
+            </div>
+
+            <!-- Change Offset Tab -->
+            <div class="tab-pane fade" id="change-offset" role="tabpanel" aria-labelledby="change-offset-tab">
+                <h5 class="card-title">Change Consumer Group Offset</h5>
+                <div class="form-group">
+                    <input type="text" id="changeGroupId" class="form-control" placeholder="Enter Kafka Group ID"
+                           required>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="changeTopic" class="form-control" placeholder="Enter Kafka Topic Name"
+                           required>
+                </div>
+                <div class="form-group">
+                    <select id="offsetOption" class="form-control">
+                        <option value="BEGINNING">Beginning</option>
+                        <option value="END">End</option>
+                        <!--                        <option value="SHIFTBY">Shift By</option>-->
+                        <option value="DATE">Date</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <input type="number" id="offsetValue" class="form-control" placeholder="Enter Offset Value"
+                           required>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="changeOffset()">Change Offset</button>
+                <div id="changeOffsetResult" class="result"></div>
+            </div>
+
+            <!-- Topic Info Tab -->
+            <div class="tab-pane fade" id="topic-info" role="tabpanel" aria-labelledby="topic-info-tab">
+                <h5 class="card-title">Get Topic Information</h5>
+                <div class="form-group">
+                    <input type="text" id="topicInfo" class="form-control" placeholder="Enter Kafka Topic Name"
+                           required>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="getTopicInfo()">Get Info</button>
+                <div id="topicInfoResult" class="result"></div>
+            </div>
+
+            <!-- Consumer Lag Tab -->
+            <div class="tab-pane fade bg-white" id="consumer-lag" role="tabpanel" aria-labelledby="consumer-lag-tab">
+                <h5 class="card-title">Get Kafka Consumer Group Lag</h5>
+                <div class="form-group">
+                    <input type="text" id="lagTopicName" class="form-control" placeholder="Enter Kafka Topic Name"
+                           required>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="lagGroupId" class="form-control" placeholder="Enter Kafka Group ID" required>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="getLagCount()">Get Lag</button>
+                <div id="lagResult" class="result"></div>
+            </div>
+
+            <!-- Paginated Topics Tab -->
+            <div class="tab-pane fade show active" id="paginated-topics" role="tabpanel"
+                 aria-labelledby="paginated-topics-tab">
+                <h5 class="card-title">Get Topics</h5>
+                <div class="form-group">
+                    <input type="number" id="pageNumber" class="form-control" placeholder="Enter Page Number" value="0"
+                           required>
+                </div>
+                <div class="form-group">
+                    <input type="number" id="pageSize" class="form-control" placeholder="Enter Page Size" value="10"
+                           required>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="getPaginatedTopics()">Get Topics</button>
+                <div id="paginatedTopicsResult" class="result"></div>
+            </div>
+
+            <!-- Paginated Consumer Group IDs Tab -->
+            <div class="tab-pane fade" id="consumer-group-ids" role="tabpanel" aria-labelledby="consumer-group-ids-tab">
+                <h5 class="card-title">Get Paginated Kafka Consumer Group IDs</h5>
+                <div class="form-group">
+                    <input type="number" id="pageNumberConsumerGroup" class="form-control"
+                           placeholder="Enter Page Number" value="0" required>
+                </div>
+                <div class="form-group">
+                    <input type="number" id="pageSizeConsumerGroup" class="form-control" placeholder="Enter Page Size"
+                           value="10" required>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="getPaginatedConsumerGroups()">Get Consumer Group
+                    IDs
+                </button>
+                <div id="paginatedConsumerGroupsResult" class="result"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap JS, Popper.js, and jQuery -->
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.6/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<script>
+    const baseUrl = "http://localhost:8087";
+
+    function getHeaders() {
+        const projectId = document.getElementById("projectId").value;
+        const clusterId = document.getElementById("clusterId").value;
+
+        return {
+            "x-project-id": projectId,
+            "x-cluster-id": clusterId
+        };
+    }
+
+    function getConsumerGroupByTopic() {
+        const topic = document.getElementById("topicName").value;
+        const url = `${baseUrl}/consumers/consumer-group-info-by-topic?topic=${topic}`;
+
+        fetch(url, {headers: getHeaders()})
+            .then(response => response.json())
+            .then(data => {
+                applyConsumerGroupTable(data, "consumerGroupResult")
+            })
+            .catch(error => console.error('Error fetching consumer group by topic:', error));
+    }
+
+    function getConsumerGroupByGroupId() {
+        const groupId = document.getElementById("groupId").value;
+        const url = `${baseUrl}/consumers/consumer-group-info-by-group-id?groupId=${groupId}`;
+
+        fetch(url, {headers: getHeaders()})
+            .then(response => response.json())
+            .then(data => {
+                applyConsumerGroupTable(data, "consumerGroupResult2")
+            })
+            .catch(error => console.error('Error fetching consumer group by topic:', error));
+    }
+
+    function applyConsumerGroupTable(data, component) {
+        let output = '';
+
+        data.forEach(group => {
+            output += `<div class="row">`;
+            output += `<div class="col-md-2">`;
+            output += `<h4><span class="badge badge-warning">${group.groupId}</span></h4>`;
+            output += `</div>`;
+            output += `<div class="col-md-2">`;
+            output += `<p>State: <span class="badge badge-success">${group.state}</span></p>`;
+            output += `</div>`;
+            output += `<div class="col-md-2">`;
+            output += `<p>Partition Assignor: <span class="badge badge-success">${group.partitionAssignor}</span></p>`;
+            output += `</div>`;
+            output += `</div>`;
+            output += `<hr/>`;
+            output += `<div class="row">`;
+            output += `<div class="col-md-2">`;
+            output += `<p>Total Committed: <span class="badge badge-secondary">${group.totalCommitted}</span></p>`;
+            output += `</div>`;
+            output += `<div class="col-md-2">`;
+            output += `<p>Total Latest: <span class="badge badge-secondary">${group.totalLatest}</span></p>`;
+            output += `</div>`;
+            output += `<div class="col-md-2">`;
+            output += `<p>Total Lag: <span class="badge badge-secondary">${group.totalLag}</span></p>`;
+            output += `</div>`;
+            output += `<div class="col-md-2">`;
+            output += `<p>Pod Count: <span class="badge badge-secondary">${group.podCount}</span></p>`;
+            output += `</div>`;
+            output += `<div class="col-md-2">`;
+            output += `<p>Member Count: <span class="badge badge-secondary">${group.memberCount}</span></p>`;
+            output += `</div>`;
+            output += `</div>`;
+            output += `<hr/>`;
+            output += `<table class='table table-bordered bg-white'">
+                            <thead class="table-info">
+                                <tr>
+                                    <th>Member ID</th>
+                                    <th>Client ID</th>
+                                    <th>Host</th>
+                                    <th>Topic</th>
+                                    <th>Partition</th>
+                                    <th>Committed Offset</th>
+                                    <th>Latest Offset</th>
+                                    <th>Lag</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+            group.members.forEach(member => {
+                output += `<tr>
+                                <td>${member.memberId}</td>
+                                <td>${member.clientId}</td>
+                                <td>${member.host}</td>
+                                <td>${member.topic}</td>
+                                <td>${member.partition}</td>
+                                <td>${member.committedOffset}</td>
+                                <td>${member.latestOffset}</td>
+                                <td>${member.lag}</td>
+                            </tr>`;
+            });
+
+            output += `</tbody></table><br>`;
+        });
+
+        document.getElementById(component).innerHTML = output;
+    }
+
+    function getTopLatestMessages() {
+        const topic = document.getElementById("topicMessages").value;
+        const maxMessages = document.getElementById("maxMessages").value;
+        const url = `${baseUrl}/topics/top-latest-messages?topic=${topic}&maxMessagesToFetch=${maxMessages}`;
+
+        fetch(url, {headers: getHeaders()})
+            .then(response => response.json())
+            .then(data => {
+                let output = "<table class='table table-bordered bg-white'><thead class='table-info'><tr><th>Message</th><th>Partition</th><th>Offset</th><th>Size</th></tr></thead><tbody>";
+                data.forEach(message => {
+                    output += `<tr>
+                            <td>${message.value}</td>
+                            <td>${message.partition}</td>
+                            <td>${message.offset}</td>
+                            <td>${message.size}</td>
+                        </tr>`;
+                });
+                output += "</tbody></table>";
+                document.getElementById("messagesResult").innerHTML = output;
+            })
+            .catch(error => console.error('Error fetching messages:', error));
+    }
+
+    function getTopicInfo() {
+        const topicName = document.getElementById("topicInfo").value;
+        const url = `${baseUrl}/topics/topic-info?topicName=${topicName}`;
+
+        fetch(url, {headers: getHeaders()})
+            .then(response => response.json())
+            .then(data => {
+                console.log(data)
+                let output = '<ul class="list-group">';
+                output += `<li class="list-group-item">ClusterId: <span class="badge badge-info">${data.clusterId}</span></li>`;
+                output += `<li class="list-group-item">Partition Count: <span class="badge badge-success">${data.partition_count}</span></li>`;
+                output += `<li class="list-group-item">Message Count: <span class="badge badge-success">${data.message_count}</span></li>`;
+                output += `<li class="list-group-item">Retention Day: <span class="badge badge-success">${data.retention_day}</span></li>`;
+                output += `<li class="list-group-item">Replicas: <span class="badge badge-info">${data['replicas']}</span></li>`;
+                output += `<li class="list-group-item">Min.insync.replicas: <span class="badge badge-info">${data['min.insync.replicas']}</span></li>`;
+                output += `<li class="list-group-item">Cleanup.policy: <span class="badge badge-info">${data['cleanup.policy']}</span></li>`;
+                output += `<li class="list-group-item">Max.message.bytes: <span class="badge badge-info">${data['max.message.bytes']}</span></li>`;
+                output += `<li class="list-group-item">Segment.ms: <span class="badge badge-info">${data['segment.ms']}</span></li>`;
+                output += `<li class="list-group-item">compression.type: <span class="badge badge-info">${data['compression.type']}</span></li>`;
+                output += `<li class="list-group-item">leader.replication.throttled.replicas: <span class="badge badge-info">${data['leader.replication.throttled.replicas']}</span></li>`;
+                output += `<li class="list-group-item">remote.storage.enable: <span class="badge badge-info">${data['remote.storage.enable']}</span></li>`;
+                output += `<li class="list-group-item">message.downconversion.enable: <span class="badge badge-info">${data['message.downconversion.enable']}</span></li>`;
+                output += `<li class="list-group-item">segment.jitter.ms: <span class="badge badge-info">${data['segment.jitter.ms']}</span></li>`;
+                output += `<li class="list-group-item">local.retention.ms: <span class="badge badge-info">${data['local.retention.ms']}</span></li>`;
+                output += `<li class="list-group-item">flush.ms: <span class="badge badge-info">${data['flush.ms']}</span></li>`;
+                output += `<li class="list-group-item">follower.replication.throttled.replicas: <span class="badge badge-info">${data['follower.replication.throttled.replicas']}</span></li>`;
+                output += `<li class="list-group-item">segment.bytes: <span class="badge badge-info">${data['segment.bytes']}</span></li>`;
+                output += `<li class="list-group-item">retention.ms: <span class="badge badge-info">${data['retention.ms']}</span></li>`;
+                output += `<li class="list-group-item">flush.messages: <span class="badge badge-info">${data['flush.messages']}</span></li>`;
+                output += `<li class="list-group-item">message.format.version: <span class="badge badge-info">${data['message.format.version']}</span></li>`;
+                output += `<li class="list-group-item">max.compaction.lag.ms: <span class="badge badge-info">${data['max.compaction.lag.ms']}</span></li>`;
+                output += `<li class="list-group-item">file.delete.delay.ms: <span class="badge badge-info">${data['file.delete.delay.ms']}</span></li>`;
+                output += `<li class="list-group-item">min.compaction.lag.ms: <span class="badge badge-info">${data['min.compaction.lag.ms']}</span></li>`;
+                output += `<li class="list-group-item">message.timestamp.type: <span class="badge badge-info">${data['message.timestamp.type']}</span></li>`;
+                output += `<li class="list-group-item">local.retention.bytes: <span class="badge badge-info">${data['local.retention.bytes']}</span></li>`;
+                output += `<li class="list-group-item">preallocate: <span class="badge badge-info">${data.preallocate}</span></li>`;
+                output += `<li class="list-group-item">min.cleanable.dirty.ratio: <span class="badge badge-info">${data['min.cleanable.dirty.ratio']}</span></li>`;
+                output += `<li class="list-group-item">index.interval.bytes: <span class="badge badge-info">${data['index.interval.bytes']}</span></li>`;
+                output += `<li class="list-group-item">unclean.leader.election.enable: <span class="badge badge-info">${data['unclean.leader.election.enable']}</span></li>`;
+                output += `<li class="list-group-item">retention.bytes: <span class="badge badge-info">${data['retention.bytes']}</span></li>`;
+                output += `<li class="list-group-item">delete.retention.ms: <span class="badge badge-info">${data['delete.retention.ms']}</span></li>`;
+                output += `<li class="list-group-item">message.timestamp.after.max.ms: <span class="badge badge-info">${data['message.timestamp.after.max.ms']}</span></li>`;
+                output += `<li class="list-group-item">message.timestamp.before.max.ms: <span class="badge badge-info">${data['message.timestamp.before.max.ms']}</span></li>`;
+                output += `<li class="list-group-item">message.timestamp.difference.max.ms: <span class="badge badge-info">${data['message.timestamp.difference.max.ms']}</span></li>`;
+                output += `<li class="list-group-item">segment.index.bytes: <span class="badge badge-info">${data['segment.index.bytes']}</span></li>`;
+                output += `</li>`;
+
+                document.getElementById("topicInfoResult").innerHTML = output;
+            })
+            .catch(error => console.error('Error fetching topic info:', error));
+    }
+
+    function getLagCount() {
+        const topicName = document.getElementById("lagTopicName").value;
+        const groupId = document.getElementById("lagGroupId").value;
+        const url = `${baseUrl}/topics/lag?topicName=${topicName}&groupId=${groupId}`;
+
+        fetch(url, {headers: getHeaders()})
+            .then(response => response.json())
+            .then(data => {
+                let output = "<table class='table table-bordered bg-white'><thead class='table-info'><tr><th>Partition</th><th>Lag</th></tr></thead>";
+                for (let partition in data) {
+                    output += `<tr>
+                            <td>${partition}</td>
+                            <td>${data[partition]}</td>
+                        </tr>`;
+                }
+                output += "</table>";
+                document.getElementById("lagResult").innerHTML = output;
+            })
+            .catch(error => console.error('Error fetching lag:', error));
+    }
+
+    function getPaginatedTopics() {
+        const page = document.getElementById("pageNumber").value;
+        const size = document.getElementById("pageSize").value;
+        const url = `${baseUrl}/topics?page=${page}&size=${size}`;
+
+        fetch(url, {headers: getHeaders()})
+            .then(response => response.json())
+            .then(data => {
+                let output = "<table class='table table-bordered bg-white'><thead class='table-info'><tr><th>Topic</th></tr></thead>";
+                data.content.forEach(topic => {
+                    output += `<tr>
+                            <td>${topic}</td>
+                        </tr>`;
+                });
+                output += "</table>";
+                document.getElementById("paginatedTopicsResult").innerHTML = output;
+            })
+            .catch(error => console.error('Error fetching paginated topics:', error));
+    }
+
+    function getPaginatedConsumerGroups() {
+        const page = document.getElementById("pageNumberConsumerGroup").value;
+        const size = document.getElementById("pageSizeConsumerGroup").value;
+
+        fetch(`/consumers?page=${page}&size=${size}`, {headers: getHeaders()})
+            .then(response => response.json())
+            .then(data => {
+                console.log(data)
+                let output = '<ul class="list-group">';
+                data.content.forEach(groupId => {
+                    output += `<li class="list-group-item">${groupId}</li>`;
+                });
+                output += '</ul>';
+                document.getElementById("paginatedConsumerGroupsResult").innerHTML = output;
+            })
+            .catch(error => {
+                document.getElementById("paginatedConsumerGroupsResult").innerHTML = 'Error fetching consumer groups';
+                console.error('Error:', error);
+            });
+    }
+
+    function changeOffset() {
+        const groupId = document.getElementById("changeGroupId").value;
+        const topic = document.getElementById("changeTopic").value;
+        const option = document.getElementById("offsetOption").value;
+        const value = document.getElementById("offsetValue").value;
+
+        const url = `${baseUrl}/operations/change-offset?groupId=${groupId}&topic=${topic}&option=${option}&value=${value}`;
+
+        fetch(url, {method: "POST", headers: getHeaders()})
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById("changeOffsetResult").innerHTML = data;
+            })
+            .catch(error => console.error('Error changing offset:', error));
+    }
+
+</script>
+
+</body>
+</html>

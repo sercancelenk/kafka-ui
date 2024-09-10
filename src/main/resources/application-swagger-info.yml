@@ -1,0 +1,26 @@
+swagger:
+  host:
+    url: http://localhost:${server.port}
+    protocol: http
+  contact:
+    name: Kafka Ui App
+    url: url
+    email: mail
+  license:
+    name: Kafka UI App
+    url: license-url
+  version: V1
+  description: API to monitor Kafka consumer group lag and fetch consumer group details.
+  termsOfService: terms
+
+
+
+# Springdoc OpenAPI properties
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    display-operation-id: true
+    operations-sorter: method
+    display-request-duration: true
