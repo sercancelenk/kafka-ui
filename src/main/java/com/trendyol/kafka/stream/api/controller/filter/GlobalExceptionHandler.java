@@ -30,7 +30,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler({ExecutionException.class, InterruptedException.class, TimeoutException.class})
-    public ResponseEntity<Exceptions.ErrorResponse> handleExecutionException(ExecutionException ex, Locale locale) {
+    public ResponseEntity<Exceptions.ErrorResponse> handleExecutionException(Exception ex, Locale locale) {
         log.error("Error occurred when requesting. ", ex);
         Exceptions.ErrorResponse errorResponse = Exceptions.ErrorResponse.builder()
                 .message("Generic error")

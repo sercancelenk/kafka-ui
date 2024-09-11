@@ -7,11 +7,26 @@
 
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
 
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- Bootstrap JS -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+
+
     <style>
         a.nav-link.badge {
             padding: 8px 12px;
             border-radius: 10px;
             font-size: 14px;
+        }
+
+        .badge-2x {
+            font-size: 1.1rem; /* Increase the font size */
+            padding: 0.4em 0.3em; /* Adjust padding */
         }
 
         body {
@@ -37,6 +52,46 @@
             border: 1px solid #dfe6e9;
             background-color: white;
         }
+
+        .topic-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .accordion-button {
+            width: 100%;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        .partition-table {
+            margin-top: 10px;
+        }
+
+        .lag-badge {
+            background-color: #f44336;
+        }
+
+        .no-lag-badge {
+            background-color: #28a745;
+        }
+
+        .table td {
+            vertical-align: top !important;
+        }
+
+        .table thead th tr {
+            border: none !important;
+            border-spacing: 0 !important;
+        }
+
+        .table thead tr {
+            border: none !important;
+            border-color: white !important;
+            border-spacing: 0 !important;
+        }
+
     </style>
 </head>
 <body>
@@ -128,16 +183,24 @@
             <div class="tab-pane fade show" id="consumer-group-by-group-id" role="tabpanel"
                  aria-labelledby="consumer-group-by-group-id-tab">
                 <h5 class="card-title">Get Consumer Group Info by Group Id</h5>
-                <div class="form-group">
-                    <input type="text" id="groupId" class="form-control" placeholder="Enter Kafka Group Id" required>
+                <div class="row">
+                    <div class="col-md-4">
+                        <input type="text" id="groupId" class="form-control" placeholder="Enter Kafka Group Id"
+                               required>
+                    </div>
+                    <div class="col-md-1">
+                        <button type="button" class="btn btn-primary form-control form-inline"
+                                onclick="getConsumerGroupByGroupId()">Get Info
+                        </button>
+                    </div>
                 </div>
-                <button type="button" class="btn btn-primary" onclick="getConsumerGroupByGroupId()">Get Info</button>
-                <div id="consumerGroupResult2" class="result"></div>
+
+                <div id="consumer-group-details"></div>
             </div>
 
             <!-- Top Messages Tab -->
             <div class="tab-pane fade" id="messages" role="tabpanel" aria-labelledby="messages-tab">
-                <h5 class="card-title">Get Top Latest Kafka Messages</h5>
+                <h5 class="card-title">Get Top Messages</h5>
                 <div class="form-group">
                     <input type="text" id="topicMessages" class="form-control" placeholder="Enter Kafka Topic Name"
                            required>
@@ -146,7 +209,7 @@
                     <input type="number" id="maxMessages" class="form-control" placeholder="Enter Number of Messages"
                            required>
                 </div>
-                <button type="button" class="btn btn-primary" onclick="getTopLatestMessages()">Get Messages</button>
+                <button type="button" class="btn btn-primary" onclick="getTopLatestMessages()">Get</button>
                 <div id="messagesResult" class="result"></div>
             </div>
 
@@ -275,77 +338,120 @@
         fetch(url, {headers: getHeaders()})
             .then(response => response.json())
             .then(data => {
-                applyConsumerGroupTable(data, "consumerGroupResult2")
+                applyConsumerGroupTable(data, "consumer-group-details")
             })
             .catch(error => console.error('Error fetching consumer group by topic:', error));
     }
 
-    function applyConsumerGroupTable(data, component) {
-        let output = '';
+    function applyConsumerGroupTable(infoList, component) {
+        console.log(component)
 
-        data.forEach(group => {
-            output += `<div class="row">`;
-            output += `<div class="col-md-2">`;
-            output += `<h4><span class="badge badge-warning">${group.groupId}</span></h4>`;
-            output += `</div>`;
-            output += `<div class="col-md-2">`;
-            output += `<p>State: <span class="badge badge-success">${group.state}</span></p>`;
-            output += `</div>`;
-            output += `<div class="col-md-2">`;
-            output += `<p>Partition Assignor: <span class="badge badge-success">${group.partitionAssignor}</span></p>`;
-            output += `</div>`;
-            output += `</div>`;
-            output += `<hr/>`;
-            output += `<div class="row">`;
-            output += `<div class="col-md-2">`;
-            output += `<p>Total Committed: <span class="badge badge-secondary">${group.totalCommitted}</span></p>`;
-            output += `</div>`;
-            output += `<div class="col-md-2">`;
-            output += `<p>Total Latest: <span class="badge badge-secondary">${group.totalLatest}</span></p>`;
-            output += `</div>`;
-            output += `<div class="col-md-2">`;
-            output += `<p>Total Lag: <span class="badge badge-secondary">${group.totalLag}</span></p>`;
-            output += `</div>`;
-            output += `<div class="col-md-2">`;
-            output += `<p>Pod Count: <span class="badge badge-secondary">${group.podCount}</span></p>`;
-            output += `</div>`;
-            output += `<div class="col-md-2">`;
-            output += `<p>Member Count: <span class="badge badge-secondary">${group.memberCount}</span></p>`;
-            output += `</div>`;
-            output += `</div>`;
-            output += `<hr/>`;
-            output += `<table class='table table-bordered bg-white'">
-                            <thead class="table-info">
-                                <tr>
-                                    <th>Member ID</th>
-                                    <th>Client ID</th>
-                                    <th>Host</th>
-                                    <th>Topic</th>
-                                    <th>Partition</th>
-                                    <th>Committed Offset</th>
-                                    <th>Latest Offset</th>
-                                    <th>Lag</th>
-                                </tr>
-                            </thead>
-                            <tbody>`;
+        let data = infoList[0]
+        $('#' + component).html = ''
+        $('#' + component).html('');
 
-            group.members.forEach(member => {
-                output += `<tr>
-                                <td>${member.memberId}</td>
-                                <td>${member.clientId}</td>
-                                <td>${member.host}</td>
-                                <td>${member.topic}</td>
-                                <td>${member.partition}</td>
-                                <td>${member.committedOffset}</td>
-                                <td>${member.latestOffset}</td>
-                                <td>${member.lag}</td>
-                            </tr>`;
+        const container = $('#' + component);
+
+
+        // Header for consumer group
+        container.append(`
+                <div class="row mt-5">
+                    <table class='table bg-white'>
+                    <thead class=''>
+                        <tr>
+                            <th>Id</th>
+                            <th>State</th>
+                            <th>Assignor</th>
+                            <th>Members</th>
+                            <th>Assigned Topics</th>
+                            <th>Total Lag</th>
+                         </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge badge-info badge-2x">${data.groupId}</span></td>
+                            <td><span class="badge badge-warning badge-2x">${data.state}</span></td>
+                            <td><span class="badge badge-primary badge-2x">${data.partitionAssignor}</span></td>
+                            <td><span class="badge badge-info badge-2x">${data.memberCount}</span></td>
+                            <td><span class="badge badge-warning badge-2x">${data.assignedTopicCount}</span></td>
+                            <td><span class="badge badge-warning badge-2x">${data.totalLag}</span></td>
+                        </tr>
+                    </tbody>
+                    </table>
+
+                </div>
+
+        `);
+
+        // Loop through topics
+        $.each(data.membersByTopic, function (topic, members) {
+            let totalLag = 0;
+            members.forEach(member => {
+                totalLag += member.lag;
             });
 
-            output += `</tbody></table><br>`;
-        });
+            const topicId = `topic-${topic}`;
 
-        document.getElementById(component).innerHTML = output;
+            container.append(`
+              <div class="card mt-3">
+                <div class="card-header topic-header" id="${topicId}">
+                  <button class="btn btn-link accordion-button" type="button" data-toggle="collapse" data-target="#collapse-${topicId}" aria-expanded="true">
+                  <div class="row">
+                    <div class="col-md-2"><h5 class="text-dark">${topic}</h5></div>
+                    <div class="col-md-4 text-start"><span class="badge badge-danger badge-2x">Lag ${totalLag}</span><span class="badge badge-info badge-2x ml-1">Assigned Partitions ${members.length}</span></div>
+
+                  </div>
+                  </button>
+                </div>
+                <div id="collapse-${topicId}" class="collapse" data-parent="#consumer-group-details">
+                  <div class="card-body">
+                    <table class="table table-bordered partition-table">
+                      <thead>
+                        <tr>
+                          <th>Partition</th>
+                          <th>Committed Offset</th>
+                          <th>Latest Offset</th>
+                          <th>Lag</th>
+                          <th>Host</th>
+                        </tr>
+                      </thead>
+                      <tbody id="table-body-${topicId}">
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+    `);
+
+            // Add partitions to the topic's table
+            const tableBody = $(`#table-body-${topicId}`);
+            members.forEach(member => {
+                const lagClass = member.lag === 0 ? 'no-lag-badge' : 'lag-badge';
+                tableBody.append(`
+        <tr>
+          <td>${member.partition}</td>
+          <td>${member.committedOffset}</td>
+          <td>${member.latestOffset}</td>
+          <td><span class="badge ${lagClass}">${member.lag}</span></td>
+          <td>${member.host}</td>
+        </tr>
+      `);
+            });
+        });
+    }
+
+    function formatTimestamp(timestamp) {
+        const date = new Date(timestamp);
+
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are zero-indexed
+        const year = date.getFullYear();
+
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+
+        return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
     }
 
     function getTopLatestMessages() {
@@ -356,13 +462,25 @@
         fetch(url, {headers: getHeaders()})
             .then(response => response.json())
             .then(data => {
-                let output = "<table class='table table-bordered bg-white'><thead class='table-info'><tr><th>Message</th><th>Partition</th><th>Offset</th><th>Size</th></tr></thead><tbody>";
+                let output = "<table class='table table-bordered bg-white'><thead class='table-info'>" +
+                    "<tr>" +
+                    "<th>Timestamp</th>" +
+                    "<th>Key</th>" +
+                    "<th>Value</th>" +
+                    "<th>Partition</th>" +
+                    "<th>Offset</th>" +
+                    "<th>Size(KB)</th>" +
+                    "</tr></thead><tbody>";
                 data.forEach(message => {
+
                     output += `<tr>
-                            <td>${message.value}</td>
-                            <td>${message.partition}</td>
+                            <td><span class="badge badge-success">${message.timestampType}</span>&nbsp;${formatTimestamp(message.timestamp)}</td>
+                            <td>${message.key}</td>
+                            <td><pre class="m-0">${JSON.stringify(message.value)}</pre></td>
+                            <td><span class="badge badge-info">${message.partition}</span></td>
                             <td>${message.offset}</td>
-                            <td>${message.size}</td>
+                            <td>${message.sizeInKB}</td>
+
                         </tr>`;
                 });
                 output += "</tbody></table>";
@@ -377,14 +495,24 @@
 
         fetch(url, {headers: getHeaders()})
             .then(response => response.json())
-            .then(data => {
-                console.log(data)
-                let output = '<ul class="list-group">';
-                output += `<li class="list-group-item">ClusterId: <span class="badge badge-info">${data.clusterId}</span></li>`;
-                output += `<li class="list-group-item">Partition Count: <span class="badge badge-success">${data.partition_count}</span></li>`;
-                output += `<li class="list-group-item">Message Count: <span class="badge badge-success">${data.message_count}</span></li>`;
-                output += `<li class="list-group-item">Retention Day: <span class="badge badge-success">${data.retention_day}</span></li>`;
-                output += `<li class="list-group-item">Replicas: <span class="badge badge-info">${data['replicas']}</span></li>`;
+            .then(resp => {
+                console.log(resp)
+                let output = ''
+                output += `<div class="row">`
+                output += `<div class="col-md-12">`
+                output += `<span class="badge badge-success badge-2x">${resp.name}</span>`
+                output += `<span class="badge badge-success badge-2x ml-2">${resp.clusterId}</span>`
+                output += `<span class="badge badge-outline-secondary badge-2x ml-2">Partitions: ${resp.partitionCount}</span>`
+                output += `<span class="badge badge-outline-secondary badge-2x ml-2">Retention(day): ${resp.retentionDay}</span>`
+                output += `<span class="badge badge-outline-secondary badge-2x ml-2">Messages: ${resp.messageCount.toLocaleString('tr-TR')}</span>`
+                output += `<span class="badge badge-outline-secondary badge-2x ml-2">Replicas: ${resp.replicas}</span>`
+                output += `</div>`
+                output += `</div>`
+                output += `<hr/>`
+                let data = resp.config
+                output += `<div class="row">`
+                output += `<div class="col-md-12">`
+                output += `<ul class="list-group">`;
                 output += `<li class="list-group-item">Min.insync.replicas: <span class="badge badge-info">${data['min.insync.replicas']}</span></li>`;
                 output += `<li class="list-group-item">Cleanup.policy: <span class="badge badge-info">${data['cleanup.policy']}</span></li>`;
                 output += `<li class="list-group-item">Max.message.bytes: <span class="badge badge-info">${data['max.message.bytes']}</span></li>`;
@@ -417,6 +545,8 @@
                 output += `<li class="list-group-item">message.timestamp.difference.max.ms: <span class="badge badge-info">${data['message.timestamp.difference.max.ms']}</span></li>`;
                 output += `<li class="list-group-item">segment.index.bytes: <span class="badge badge-info">${data['segment.index.bytes']}</span></li>`;
                 output += `</li>`;
+                output += `</div>`
+                output += `</div>`
 
                 document.getElementById("topicInfoResult").innerHTML = output;
             })
@@ -500,6 +630,10 @@
             })
             .catch(error => console.error('Error changing offset:', error));
     }
+
+    // $(document).ready(function () {
+    //
+    // });
 
 </script>
 

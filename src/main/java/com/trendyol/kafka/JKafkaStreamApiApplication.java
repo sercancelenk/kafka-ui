@@ -1,5 +1,7 @@
 package com.trendyol.kafka;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
@@ -15,7 +17,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 
-import java.util.*;
+import java.util.List;
+import java.util.Properties;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Function;
@@ -31,7 +36,7 @@ public class JKafkaStreamApiApplication {
     }
 
     @Bean
-    public CommandLineRunner runner(ApplicationContext applicationContext){
+    public CommandLineRunner runner(ApplicationContext applicationContext, ObjectMapper objectMapper) {
         return args -> {
 //            log.info("Commandlinerunner is fired");
 //            String[] beanNames = applicationContext.getBeanDefinitionNames();
@@ -42,11 +47,34 @@ public class JKafkaStreamApiApplication {
 //            for (String beanName : beanNames) {
 //                log.info(beanName);
 //            }
+
+//            Thread vThread1 = Thread.ofVirtual().start(() -> produceMessages("topic1"));
+//            Thread vThread2 = Thread.ofVirtual().start(() -> produceMessages("topic2"));
+//            Thread vThread3 = Thread.ofVirtual().start(() -> produceMessages("topic3"));
+//            Thread vThread4 = Thread.ofVirtual().start(() -> produceMessages("topic4"));
+//            Thread vThread5 = Thread.ofVirtual().start(() -> produceMessages("topic5", objectMapper));
+//
+//            // Wait for both threads to complete
+//            vThread1.join();
+//            vThread2.join();
+//            vThread3.join();
+//            vThread4.join();
+//            vThread5.join();
         };
 
     }
 
-    public static void produceMessages(){
+
+
+    public static String asJson(ObjectMapper mapper, Object o){
+        try {
+            return mapper.writeValueAsString(o);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void produceMessages(String topic, ObjectMapper mapper) {
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092"); // Kafka broker
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
@@ -55,10 +83,10 @@ public class JKafkaStreamApiApplication {
         // Create the Kafka Producer
         KafkaProducer<String, String> producer = new KafkaProducer<>(props);
 
-        String topic = "demo.topic.2";  // Replace with your topic name
+        record Message(Integer id, String name){}
 
         // Produce 1 million records
-        int messageCount = 10_000_000;
+        int messageCount = 200_000_000;
         long startTime = System.currentTimeMillis();  // Start time for performance tracking
         Function<Integer, Integer> generateRandomNumber = (max) -> {
             Random random = new Random();
@@ -67,7 +95,8 @@ public class JKafkaStreamApiApplication {
         };
         for (int i = 1; i <= messageCount; i++) {
             String key = "key-" + i;
-            String value = "message-" + i;
+            Message message = new Message(i, "message-" + i);
+            String value = asJson(mapper, message);
             String t = topic;//topic.concat(generateRandomNumber.apply(4).toString());
             // Create a producer record
             ProducerRecord<String, String> record = new ProducerRecord<>(t, key, value);

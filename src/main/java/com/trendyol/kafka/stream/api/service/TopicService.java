@@ -4,14 +4,12 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.trendyol.kafka.stream.api.controller.context.RequestContext;
-import com.trendyol.kafka.stream.api.model.Exceptions;
 import com.trendyol.kafka.stream.api.model.Models;
 import com.trendyol.kafka.stream.api.service.manager.KafkaWrapper;
 import com.trendyol.kafka.stream.api.util.ThreadLocalPriorityQueue;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -27,8 +25,10 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Nonnull;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,18 +36,19 @@ import java.util.concurrent.TimeUnit;
 public class TopicService {
     private final Map<String, Models.ClusterAdminInfo> clusterAdminMap;
     private final KafkaWrapper kafkaWrapper;
-    private LoadingCache<String, Map<String, Object>> topicInfoCache;
+    private final Integer cacheTimeoutSeconds = 5;
+    private LoadingCache<String, Models.TopicInfo> topicInfoCache;
     private LoadingCache<String, List<String>> allTopicNameListCache;
 
     @PostConstruct
     public void init() {
         topicInfoCache = CacheBuilder.newBuilder()
-                .expireAfterWrite(20, TimeUnit.SECONDS)  // Cache entry expiration time
+                .expireAfterWrite(cacheTimeoutSeconds, TimeUnit.SECONDS)  // Cache entry expiration time
                 .maximumSize(100)  // Maximum number of cache entries
                 .build(new CacheLoader<>() {
                     @Override
                     @Nonnull
-                    public Map<String, Object> load(@NonNull String compositeKey) throws ExecutionException, InterruptedException {
+                    public Models.TopicInfo load(@NonNull String compositeKey) throws ExecutionException, InterruptedException {
                         String[] keyParts = compositeKey.split(":", 2);
                         String topicName = keyParts[1];
                         return getTopicInfoUnCached(topicName);
@@ -55,7 +56,7 @@ public class TopicService {
                 });
 
         allTopicNameListCache = CacheBuilder.newBuilder()
-                .expireAfterWrite(20, TimeUnit.SECONDS)  // Cache entry expiration time
+                .expireAfterWrite(cacheTimeoutSeconds, TimeUnit.SECONDS)  // Cache entry expiration time
                 .maximumSize(100)  // Maximum number of cache entries
                 .build(new CacheLoader<>() {
                     @Override
@@ -87,16 +88,7 @@ public class TopicService {
                 ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));  // Poll every 1 second
 
                 for (ConsumerRecord<String, String> record : records) {
-                    String messageValue = record.value();
-                    int messageSize = messageValue != null ? messageValue.length() : 0;
-
-                    Models.MessageInfo messageInfo = new Models.MessageInfo(
-                            record.topic(),
-                            record.partition(),
-                            record.offset(),
-                            messageSize,
-                            messageValue
-                    );
+                    Models.MessageInfo messageInfo = kafkaWrapper.extractMessage(record);
 
                     // Add the message to the priority queue
                     topMessagesQueue.offer(messageInfo);
@@ -148,13 +140,7 @@ public class TopicService {
             if (!records.isEmpty()) {
                 // Return the first message in the records
                 ConsumerRecord<String, String> record = records.iterator().next();
-                return Models.MessageInfo.builder()
-                        .topic(topic)
-                        .value(record.value())
-                        .offset(record.offset())
-                        .partition(record.partition())
-                        .size(record.value() != null ? record.value().length() : 0)
-                        .build();
+                return kafkaWrapper.extractMessage(record);
             }
             return Models.MessageInfo.builder().build();
 
@@ -166,7 +152,7 @@ public class TopicService {
         }
     }
 
-    public Map<String, Object> getTopicInfo(String topicName) throws ExecutionException {
+    public Models.TopicInfo getTopicInfo(String topicName) throws ExecutionException {
         String compositeKey = RequestContext.getClusterId() + ":" + topicName;
         return topicInfoCache.get(compositeKey);
     }
@@ -203,33 +189,19 @@ public class TopicService {
         }
     }
 
-    private Map<String, Object> getTopicInfoUnCached(String topicName) throws ExecutionException, InterruptedException {
-        Map<String, Object> topicInfo = new HashMap<>();
-        topicInfo.put("clusterId", RequestContext.getClusterId());  // Add clusterId to the response
+    private Models.TopicInfo getTopicInfoUnCached(String topicName) throws ExecutionException, InterruptedException {
+        Models.TopicInfo.TopicInfoBuilder builder = Models.TopicInfo.builder();
+        Map<String, Object> topicConfig = new HashMap<>();
+
+        String clusterId = RequestContext.getClusterId();
+
+        builder.clusterId(clusterId);
+        builder.name(topicName);
 
         // Get the topic description to fetch partition information
-        TopicDescription topicDescription = null;
-
-        try {
-            topicDescription = clusterAdminMap.get(RequestContext.getClusterId()).adminClient()
-                    .describeTopics(Collections.singletonList(topicName))
-                    .topicNameValues()
-                    .get(topicName)
-                    .get();
-        } catch (ExecutionException e) {
-            log.error("Error during Kafka operation: " + e.getCause().getMessage());
-            Throwable cause = e.getCause();
-            if (cause instanceof org.apache.kafka.common.errors.UnknownTopicOrPartitionException) {
-                throw Exceptions.TopicNotFoundException.builder()
-                        .params(new Object[]{topicName, RequestContext.getClusterId()}).build();
-            }
-        }
-
-
-        // Fetch partition count
-        assert topicDescription != null;
+        TopicDescription topicDescription = kafkaWrapper.describeTopic(clusterId, topicName);
         int partitionCount = topicDescription.partitions().size();
-        topicInfo.put("partition_count", partitionCount);
+        builder.partitionCount(partitionCount);
 
         // Fetch the retention period
         ConfigResource configResource = new ConfigResource(ConfigResource.Type.TOPIC, topicName);
@@ -241,11 +213,11 @@ public class TopicService {
 
         String retentionMs = config.get(TopicConfig.RETENTION_MS_CONFIG).value();
         long retentionDay = Long.parseLong(retentionMs) / (1000 * 60 * 60 * 24);  // Convert retention in ms to days
-        topicInfo.put("retention_day", retentionDay);
+        builder.retentionDay(retentionDay);
 
         // Calculate total message count
         long totalMessageCount = 0;
-        long replicas = 0;
+        Map<String, Integer> replicas = new ConcurrentHashMap<>();
         for (TopicPartitionInfo tpi : topicDescription.partitions()) {
             TopicPartition partition = new TopicPartition(topicName, tpi.partition());
             ListOffsetsResult.ListOffsetsResultInfo earliest = clusterAdminMap.get(RequestContext.getClusterId()).adminClient().listOffsets(
@@ -255,13 +227,15 @@ public class TopicService {
 
             long partitionMessageCount = latest.offset() - earliest.offset();
             totalMessageCount += partitionMessageCount;
-            replicas += tpi.replicas().size();
+            tpi.replicas().forEach(node -> replicas.putIfAbsent(node.host() + ":" +node.port(), 1));
         }
-        topicInfo.put("message_count", totalMessageCount);
-        config.entries().forEach(entry -> topicInfo.put(entry.name(), entry.value()));
-        topicInfo.put("replicas", replicas);
+        builder.messageCount(totalMessageCount);
+        builder.replicas(replicas.size());
 
-        return topicInfo;
+        config.entries().forEach(entry -> topicConfig.putIfAbsent(entry.name(), entry.value()));
+        builder.config(topicConfig);
+
+        return builder.build();
     }
 
     public Models.PaginatedResponse<String> getTopicListUnCached(int page, int size) throws ExecutionException, InterruptedException {

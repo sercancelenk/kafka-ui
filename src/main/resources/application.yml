@@ -2,7 +2,7 @@ spring:
   application:
     name: j-kafka-stream-api
   profiles:
-    include: swagger-info, cluster-configs
+    include: swagger-info, cluster-configs, circuit-breaker
 
   threads:
     virtual:
@@ -32,6 +32,7 @@ logging:
     com.trendyol.kafka.stream.api.service.manager.ConsumerPool: DEBUG
     org.apache.kafka.common.telemetry.internals.KafkaMetricsCollector: ERROR
     org.apache.kafka.clients.admin: DEBUG
+    org.apache.kafka.clients.admin.KafkaAdminClient: TRACE
 
 ---
 spring:

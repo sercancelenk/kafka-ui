@@ -1,16 +1,21 @@
 package com.trendyol.kafka.stream.api.service.manager;
 
+import com.trendyol.kafka.stream.api.controller.context.RequestContext;
 import com.trendyol.kafka.stream.api.model.Exceptions;
 import com.trendyol.kafka.stream.api.model.Models;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.admin.*;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
+import org.apache.kafka.common.header.Header;
+import org.apache.kafka.common.header.Headers;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -30,14 +35,47 @@ public class KafkaWrapper {
         throw Exceptions.ClusterNotSupportedException.builder().params(new Object[]{clusterId}).build();
     }
 
-    public ConsumerGroupDescription describeConsumerGroupsBy(String clusterId, String groupId) {
+    public ConsumerGroupDescription getSingleConsumerGroupDescription(String clusterId, String groupId) {
         try {
             return getClusterAdmin(clusterId).adminClient()
-                    .describeConsumerGroups(Collections.singletonList(groupId))
-                    .describedGroups().get(groupId).get();
+                    .describeConsumerGroups(Collections.singletonList(groupId)).
+                    describedGroups().get(groupId).get();
         } catch (InterruptedException | ExecutionException e) {
             throw new Exceptions.ProcessExecutionException(e);
         }
+    }
+
+    public Models.MessageInfo extractMessage(ConsumerRecord<String, String> record) {
+        String messageValue = record.value();
+        int sizeInBytes = messageValue.getBytes().length;
+        double sizeInKB = (double) sizeInBytes / 1024;
+        double sizeInMb = (double) sizeInBytes / (1024 * 1024);
+
+        Map<String, String> headers = getHeadersAsMap(record);
+
+        return Models.MessageInfo
+                .builder()
+                .sizeInBytes(sizeInBytes)
+                .sizeInKB(sizeInKB)
+                .sizeInMb(sizeInMb)
+                .key(record.key())
+                .value(record.value())
+                .headers(headers)
+                .topic(record.topic())
+                .partition(record.partition())
+                .offset(record.offset())
+                .timestamp(record.timestamp())
+                .timestampType(record.timestampType().name)
+                .build();
+    }
+
+    public Map<String, String> getHeadersAsMap(ConsumerRecord<String, String> record) {
+        Headers headers = record.headers();
+        Map<String, String> headersMap = new HashMap<>();
+        for (Header header : headers) {
+            headersMap.put(header.key(), new String(header.value(), StandardCharsets.UTF_8));
+        }
+        return headersMap;
     }
 
     public List<String> listConsumerGroupIds(String clusterId) {
@@ -46,7 +84,19 @@ public class KafkaWrapper {
                     .listConsumerGroups()
                     .all()
                     .get()
-                    .stream().map(ConsumerGroupListing::groupId).toList();
+                    .stream().map(ConsumerGroupListing::groupId)
+                    .toList();
+        } catch (InterruptedException | ExecutionException e) {
+            throw new Exceptions.ProcessExecutionException(e);
+        }
+    }
+
+    public boolean isOffsetBelongsToTopicInGroup(String clusterId, String groupId, String topic) {
+        try {
+            return getClusterAdmin(clusterId).adminClient().listConsumerGroupOffsets(groupId)
+                    .partitionsToOffsetAndMetadata().get()
+                    .entrySet().stream()
+                    .anyMatch(entry -> entry.getKey().topic().equals(topic));
         } catch (InterruptedException | ExecutionException e) {
             throw new Exceptions.ProcessExecutionException(e);
         }
@@ -132,9 +182,9 @@ public class KafkaWrapper {
     }
 
     public ListOffsetsResult.ListOffsetsResultInfo getOffsetForTimestamp(String clusterId, TopicPartition topicPartition, long timestamp) throws ExecutionException, InterruptedException {
-            ListOffsetsResult result = getClusterAdmin(clusterId).adminClient()
-                    .listOffsets(Collections.singletonMap(topicPartition, OffsetSpec.forTimestamp(timestamp)));
-            return result.partitionResult(topicPartition).get();
+        ListOffsetsResult result = getClusterAdmin(clusterId).adminClient()
+                .listOffsets(Collections.singletonMap(topicPartition, OffsetSpec.forTimestamp(timestamp)));
+        return result.partitionResult(topicPartition).get();
     }
 
     public List<TopicPartitionInfo> getPartitionsOfTopic(String clusterId, String topic) {
@@ -170,5 +220,23 @@ public class KafkaWrapper {
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             throw new Exceptions.ProcessExecutionException(e);
         }
+    }
+
+    public TopicDescription describeTopic(String clusterId, String topicName) {
+        try {
+            return getClusterAdmin(clusterId).adminClient()
+                    .describeTopics(Collections.singletonList(topicName))
+                    .topicNameValues()
+                    .get(topicName)
+                    .get();
+        } catch (InterruptedException | ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof org.apache.kafka.common.errors.UnknownTopicOrPartitionException) {
+                throw Exceptions.TopicNotFoundException.builder()
+                        .params(new Object[]{topicName, RequestContext.getClusterId()}).build();
+            }
+            throw new Exceptions.ProcessExecutionException(e);
+        }
+
     }
 }

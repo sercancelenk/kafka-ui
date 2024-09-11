@@ -12,13 +12,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.common.acl.AclOperation;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,13 +28,13 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ConsumerService {
     private final KafkaWrapper kafkaWrapper;
+    private final Integer cacheTimeoutSeconds = 5;
     private LoadingCache<String, List<Models.ConsumerGroupInfo>> consumerGroupCache;
 
     @PostConstruct
     public void init() {
-        // Initialize Guava LoadingCache
         this.consumerGroupCache = CacheBuilder.newBuilder()
-                .expireAfterWrite(20, TimeUnit.SECONDS)  // Cache entry expiration time
+                .expireAfterWrite(cacheTimeoutSeconds, TimeUnit.SECONDS)  // Cache entry expiration time
                 .maximumSize(100)  // Maximum number of cached entries
                 .build(new CacheLoader<>() {
                     @Override
@@ -60,98 +58,92 @@ public class ConsumerService {
     }
 
     public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByGroupId(String groupId) throws ExecutionException {
-        return consumerGroupCache.get("clusterid:" + RequestContext.getClusterId() + ":group:" + groupId);  // Cache key is "clusterid:"+clusterId+":group:" + group
+//        return consumerGroupCache.get("clusterid:" + RequestContext.getClusterId() + ":group:" + groupId);  // Cache key is "clusterid:"+clusterId+":group:" + group
+        return getConsumerGroupInfoByGroupIdUncached(groupId);
     }
 
     public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByTopic(String topic) throws ExecutionException {
-        return consumerGroupCache.get("clusterid:" + RequestContext.getClusterId() + ":topic:" + topic);
+//        return consumerGroupCache.get("clusterid:" + RequestContext.getClusterId() + ":topic:" + topic);
+        return getConsumerGroupInfoByTopicUncached(topic);
     }
 
-    public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByGroupIdUncached(String groupId) throws ExecutionException, InterruptedException {
-        log.info("ConsumerGroupInfo getting from cluster {}", RequestContext.getClusterId());
-        List<Models.ConsumerGroupInfo> result = new ArrayList<>();
-        result.add(getConsumerGroupInfo(groupId, Optional.empty()));
-        return result;
+    public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByGroupIdUncached(String groupId) {
+        String clusterId = RequestContext.getClusterId();
+        log.info("ConsumerGroupInfo getting from cluster {}", clusterId);
+        return List.of(extractConsumerGroupInfo(kafkaWrapper.getSingleConsumerGroupDescription(clusterId, groupId)));
     }
 
     public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByTopicUncached(String topic) {
-        return getConsumerGroupsByTopic(topic)
+        String clusterId = RequestContext.getClusterId();
+        return kafkaWrapper.listConsumerGroupIds(RequestContext.getClusterId())
                 .stream()
-                .map(groupId -> getConsumerGroupInfo(groupId, Optional.of(topic)))
+                .filter(groupId -> kafkaWrapper.isOffsetBelongsToTopicInGroup(clusterId, groupId, topic))
+                .map(groupId -> extractConsumerGroupInfo(kafkaWrapper.getSingleConsumerGroupDescription(clusterId, groupId)))
                 .toList();
     }
 
-    public Set<String> getConsumerGroupsByTopic(String topic) {
-        return kafkaWrapper.listConsumerGroupIds(RequestContext.getClusterId())
-                .stream()
-                .filter(groupId -> {
-                    ConsumerGroupDescription groupDescription = kafkaWrapper.describeConsumerGroupsBy(RequestContext.getClusterId(), groupId);
-                    return groupDescription.members().stream()
-                            .anyMatch(member -> member.assignment().topicPartitions().stream()
-                                    .anyMatch(tp -> tp.topic().equals(topic)));
-                }).collect(Collectors.toSet());
-    }
-
-    public Models.ConsumerGroupInfo getConsumerGroupInfo(String groupId, Optional<String> topicOpt) {
-        ConsumerGroupDescription groupDescription = kafkaWrapper.describeConsumerGroupsBy(RequestContext.getClusterId(), groupId);
-
-        AtomicLong totalCommitted = new AtomicLong(0L);
-        AtomicLong totalLatest = new AtomicLong(0L);
+    public Models.ConsumerGroupInfo extractConsumerGroupInfo(ConsumerGroupDescription groupDescription) {
+        String groupId = groupDescription.groupId();
+        AtomicInteger totalMemberCount = new AtomicInteger(0);
         AtomicLong totalLag = new AtomicLong(0L);
-        AtomicInteger podCount = new AtomicInteger(0);
+        Map<String, Integer> podMap = new ConcurrentHashMap<>();
+        AtomicInteger totalAssignedPartitions = new AtomicInteger(0);
 
+        Models.ConsumerGroupCoordinator coordinator = Models.ConsumerGroupCoordinator
+                .builder()
+                .id(groupDescription.coordinator().id())
+                .idString(groupDescription.coordinator().idString())
+                .host(groupDescription.coordinator().host())
+                .port(groupDescription.coordinator().port())
+                .rack(groupDescription.coordinator().rack())
+                .build();
 
-
-        List<Models.ConsumerGroupMember> members = groupDescription
+        Map<String, List<Models.ConsumerGroupMember>> membersByTopic = groupDescription
                 .members()
                 .stream()
                 .flatMap(member -> member.assignment()
                         .topicPartitions()
                         .stream()
-                        .filter(f -> topicOpt.isEmpty() || f.topic().equals(topicOpt.get()))
                         .map(tp -> {
-                            try {
-                                OffsetAndMetadata committedOffset = kafkaWrapper.getCommittedOffset(RequestContext.getClusterId(), groupId, tp);
-                                long latestOffset = kafkaWrapper.getLatestOffset(RequestContext.getClusterId(), tp);
+                            OffsetAndMetadata committedOffset = kafkaWrapper.getCommittedOffset(RequestContext.getClusterId(), groupId, tp);
+                            long latestOffset = kafkaWrapper.getLatestOffset(RequestContext.getClusterId(), tp);
 
-                                long committed = committedOffset != null ? committedOffset.offset() : 0;
-                                long lag = latestOffset - committed;
+                            long committed = committedOffset != null ? committedOffset.offset() : 0;
+                            long lag = latestOffset - committed;
 
-                                totalCommitted.addAndGet(committed);
-                                totalLatest.addAndGet(latestOffset);
-                                totalLag.addAndGet(lag);
-                                podCount.addAndGet(1);
+                            totalLag.addAndGet(lag);
+                            totalMemberCount.incrementAndGet();
+                            totalAssignedPartitions.incrementAndGet();
+                            podMap.putIfAbsent(member.host(), 1);
 
-                                // Fill in the member's details
-                                return Models.ConsumerGroupMember
-                                        .builder()
-                                        .lag(lag)
-                                        .memberId(member.consumerId())
-                                        .clientId(member.clientId())
-                                        .host(member.host())
-                                        .topic(tp.topic())
-                                        .partition(tp.partition())
-                                        .committedOffset(committed)
-                                        .latestOffset(latestOffset)
-                                        .build();
-                            } catch (Exception e) {
-                                throw new RuntimeException(e);
-                            }
-                        })
-                        .toList().stream()
-                ).toList();
+                            return Models.ConsumerGroupMember
+                                    .builder()
+                                    .lag(lag)
+                                    .consumerId(member.consumerId())
+                                    .memberId(member.consumerId())
+                                    .clientId(member.clientId())
+                                    .host(member.host())
+                                    .topic(tp.topic())
+                                    .partition(tp.partition())
+                                    .committedOffset(committed)
+                                    .latestOffset(latestOffset)
+                                    .build();
+
+                        }).toList().stream()
+                ).collect(Collectors.groupingBy(Models.ConsumerGroupMember::topic));
 
         return Models.ConsumerGroupInfo
                 .builder()
                 .groupId(groupId)
+                .coordinator(coordinator)
                 .state(groupDescription.state().toString())
                 .partitionAssignor(StringUtils.isEmpty(groupDescription.partitionAssignor()) ? "NONE" : groupDescription.partitionAssignor())
-                .members(members)
-                .totalCommitted(totalCommitted.get())
-                .totalLatest(totalLatest.get())
+                .membersByTopic(membersByTopic)
+                .memberCount(totalMemberCount.get())
+                .podCount(podMap.size())
+                .assignedTopicCount(membersByTopic.keySet().size())
+                .assignedPartitionsCount(totalAssignedPartitions.get())
                 .totalLag(totalLag.get())
-                .memberCount(podCount.get())
-                .podCount(podCount.get())
                 .build();
 
     }

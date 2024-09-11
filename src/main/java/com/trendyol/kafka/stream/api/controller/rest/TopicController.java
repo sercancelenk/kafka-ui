@@ -62,12 +62,12 @@ public class TopicController {
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Successfully retrieved topic information",
                     content = {@Content(mediaType = "application/json",
-                            schema = @Schema(implementation = Map.class))}),
+                            schema = @Schema(implementation = Models.TopicInfo.class))}),
             @ApiResponse(responseCode = "400", description = "Invalid request parameters", content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
     @GetMapping("/topic-info")
-    public Map<String, Object> getTopicInfo(
+    public Models.TopicInfo getTopicInfo(
             @Parameter(description = "The Kafka topic name to fetch information about", example = "my-topic")
             @RequestParam String topicName) throws ExecutionException, InterruptedException {
 
