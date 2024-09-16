@@ -1,4 +1,4 @@
-package com.trendyol.kafka.stream.api.config;
+package com.trendyol.kafka.stream.api.infra;
 
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;

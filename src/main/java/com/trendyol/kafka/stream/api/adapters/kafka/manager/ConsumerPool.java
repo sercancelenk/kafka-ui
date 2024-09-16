@@ -1,10 +1,8 @@
-package com.trendyol.kafka.stream.api.service.manager;
+package com.trendyol.kafka.stream.api.adapters.kafka.manager;
 
-import com.trendyol.kafka.stream.api.controller.context.RequestContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.serialization.StringDeserializer;
 
 import java.util.Optional;
@@ -52,14 +50,13 @@ public class ConsumerPool {
     }
 
     public KafkaConsumer<String, String> borrowConsumer() throws InterruptedException {
-        log.debug("Borrowing consumer for cluster {}", RequestContext.getClusterId());
         return cp.take();  // Block until a consumer is available
     }
 
     public void returnConsumer(KafkaConsumer<String, String> consumer) {
         consumer.unsubscribe();
         boolean offer = cp.offer(consumer);
-        if (offer) log.debug("Releasing and unsubscribing consumer to pool is success for cluster " + RequestContext.getClusterId());
+        if (offer) log.debug("Releasing and unsubscribing consumer to pool is success for cluster ");
     }
 
     public void stopAll() {

@@ -1,34 +1,28 @@
-package com.trendyol.kafka.stream.api.service;
+package com.trendyol.kafka.stream.api.application;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import com.trendyol.kafka.stream.api.controller.context.RequestContext;
-import com.trendyol.kafka.stream.api.model.Models;
-import com.trendyol.kafka.stream.api.service.manager.KafkaWrapper;
+import com.trendyol.kafka.stream.api.adapters.kafka.manager.KafkaWrapper;
+import com.trendyol.kafka.stream.api.domain.Models;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
-import org.apache.kafka.clients.admin.ListOffsetsResult;
-import org.apache.kafka.clients.admin.OffsetSpec;
-import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.common.KafkaFuture;
-import org.apache.kafka.common.TopicPartition;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static java.util.stream.Collectors.toMap;
 
 @Service
 @RequiredArgsConstructor
@@ -54,43 +48,41 @@ public class ConsumerService {
                             String clusterId = splittedKey[1];
                             String topic = splittedKey[3];
 
-                            return getConsumerGroupInfoByTopicUncached(topic);
+                            return getConsumerGroupInfoByTopicUncached(clusterId, topic);
                         } else {
                             String[] splittedKey = key.split(":");
                             String clusterId = splittedKey[1];
                             String group = splittedKey[3];
-                            return getConsumerGroupInfoByGroupIdUncached(group);
+                            return getConsumerGroupInfoByGroupIdUncached(clusterId, group);
                         }
                     }
                 });
     }
 
-    public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByGroupId(String groupId) throws ExecutionException {
+    public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByGroupId(String clusterId, String groupId) {
 //        return consumerGroupCache.get("clusterid:" + RequestContext.getClusterId() + ":group:" + groupId);  // Cache key is "clusterid:"+clusterId+":group:" + group
-        return getConsumerGroupInfoByGroupIdUncached(groupId);
+        return getConsumerGroupInfoByGroupIdUncached(clusterId, groupId);
     }
 
-    public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByTopic(String topic) throws ExecutionException {
+    public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByTopic(String clusterId, String topic) {
 //        return consumerGroupCache.get("clusterid:" + RequestContext.getClusterId() + ":topic:" + topic);
-        return getConsumerGroupInfoByTopicUncached(topic);
+        return getConsumerGroupInfoByTopicUncached(clusterId, topic);
     }
 
-    public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByGroupIdUncached(String groupId) {
-        String clusterId = RequestContext.getClusterId();
+    public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByGroupIdUncached(String clusterId, String groupId) {
         log.info("ConsumerGroupInfo getting from cluster {}", clusterId);
-        return List.of(extractConsumerGroupInfo(kafkaWrapper.getSingleConsumerGroupDescription(clusterId, groupId)));
+        return List.of(extractConsumerGroupInfo(clusterId, kafkaWrapper.getSingleConsumerGroupDescription(clusterId, groupId)));
     }
 
-    public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByTopicUncached(String topic) {
-        String clusterId = RequestContext.getClusterId();
-        return kafkaWrapper.listConsumerGroupIds(RequestContext.getClusterId())
+    public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByTopicUncached(String clusterId, String topic) {
+        return kafkaWrapper.listConsumerGroupIds(clusterId)
                 .stream()
                 .filter(groupId -> kafkaWrapper.isOffsetBelongsToTopicInGroup(clusterId, groupId, topic))
-                .map(groupId -> extractConsumerGroupInfo(kafkaWrapper.getSingleConsumerGroupDescription(clusterId, groupId)))
+                .map(groupId -> extractConsumerGroupInfo(clusterId, kafkaWrapper.getSingleConsumerGroupDescription(clusterId, groupId)))
                 .toList();
     }
 
-    public Models.ConsumerGroupInfo extractConsumerGroupInfo(ConsumerGroupDescription groupDescription) {
+    public Models.ConsumerGroupInfo extractConsumerGroupInfo(String clusterId, ConsumerGroupDescription groupDescription) {
         String groupId = groupDescription.groupId();
         AtomicInteger totalMemberCount = new AtomicInteger(0);
         AtomicLong totalLag = new AtomicLong(0L);
@@ -113,8 +105,8 @@ public class ConsumerService {
                         .topicPartitions()
                         .stream()
                         .map(tp -> {
-                            OffsetAndMetadata committedOffset = kafkaWrapper.getCommittedOffset(RequestContext.getClusterId(), groupId, tp);
-                            long latestOffset = kafkaWrapper.getLatestOffset(RequestContext.getClusterId(), tp);
+                            OffsetAndMetadata committedOffset = kafkaWrapper.getCommittedOffset(clusterId, groupId, tp);
+                            long latestOffset = kafkaWrapper.getLatestOffset(clusterId, tp);
 
                             long committed = committedOffset != null ? committedOffset.offset() : 0;
                             long lag = latestOffset - committed;
@@ -156,8 +148,9 @@ public class ConsumerService {
 
     }
 
-    public Models.PaginatedResponse<String> getConsumerGroupIdsPaginated(int page, int size) {
-        List<String> consumerGroups = kafkaWrapper.listConsumerGroupIds(RequestContext.getClusterId());
+//    @CircuitBreaker(name = "getConsumerGroups", fallbackMethod = "getConsumerGroupsFallback")
+    public Models.PaginatedResponse<String> getConsumerGroupIdsPaginated(String clusterId, int page, int size) {
+        List<String> consumerGroups = kafkaWrapper.listConsumerGroupIds(clusterId);
 
         int totalItems = consumerGroups.size();
         int totalPages = (int) Math.ceil((double) totalItems / size);
@@ -170,5 +163,10 @@ public class ConsumerService {
                 .toList();
 
         return new Models.PaginatedResponse<>(paginatedConsumerGroupIds, page, totalItems, totalPages);
+    }
+
+    public Models.PaginatedResponse<String> getConsumerGroupsFallback(int page, int size, Throwable throwable) {
+        System.out.println("Circuit breaker triggered for getConsumerGroups");
+        return new Models.PaginatedResponse<String>(Collections.emptyList(), page, size, 0);
     }
 }

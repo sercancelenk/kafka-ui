@@ -1,4 +1,4 @@
-package com.trendyol.kafka.stream.api.config;
+package com.trendyol.kafka.stream.api.infra;
 
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import io.swagger.v3.oas.annotations.Operation;

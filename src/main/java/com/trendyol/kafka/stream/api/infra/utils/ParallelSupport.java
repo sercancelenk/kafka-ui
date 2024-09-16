@@ -1,4 +1,4 @@
-package com.trendyol.kafka.stream.api.util;
+package com.trendyol.kafka.stream.api.infra.utils;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;

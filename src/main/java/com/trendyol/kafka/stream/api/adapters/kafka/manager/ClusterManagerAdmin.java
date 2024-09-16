@@ -1,13 +1,11 @@
-package com.trendyol.kafka.stream.api.service.manager;
+package com.trendyol.kafka.stream.api.adapters.kafka.manager;
 
-import com.trendyol.kafka.stream.api.model.Models;
+import com.trendyol.kafka.stream.api.domain.Models;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
-import org.apache.kafka.common.config.SaslConfigs;
-import org.springframework.beans.factory.DisposableBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

@@ -1,4 +1,4 @@
-package com.trendyol.kafka.stream.api.service.manager;
+package com.trendyol.kafka.stream.api.adapters.kafka.manager;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

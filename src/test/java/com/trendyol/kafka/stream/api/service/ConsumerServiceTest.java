@@ -1,8 +1,9 @@
 package com.trendyol.kafka.stream.api.service;
 
-import com.trendyol.kafka.stream.api.controller.context.RequestContext;
-import com.trendyol.kafka.stream.api.model.Models;
-import com.trendyol.kafka.stream.api.service.manager.KafkaWrapper;
+import com.trendyol.kafka.stream.api.adapters.rest.context.RequestContext;
+import com.trendyol.kafka.stream.api.application.ConsumerService;
+import com.trendyol.kafka.stream.api.domain.Models;
+import com.trendyol.kafka.stream.api.adapters.kafka.manager.KafkaWrapper;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberAssignment;
 import org.apache.kafka.clients.admin.MemberDescription;

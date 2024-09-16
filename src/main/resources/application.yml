@@ -15,6 +15,9 @@ spring:
     locale: en
     locale-resolver: fixed
 
+management.endpoints.web.exposure.include: "*"
+management.health.circuitbreakers.enabled: true
+
 server:
   port: 8087
   servlet:
@@ -30,8 +33,8 @@ server:
 logging:
   level:
     ROOT: INFO
-    org.apache.kafka.streams: TRACE
-    com.trendyol.kafka.stream.api.service.manager.ConsumerPool: ERROR
+    io.github.resilience4j: TRACE
+    com.trendyol.kafka.stream.api.adapters.kafka.manager.ConsumerPool: ERROR
     org.apache.kafka.common.telemetry.internals.KafkaMetricsCollector: ERROR
     org.apache.kafka.clients.admin: ERROR
     org.apache.kafka.clients.admin.KafkaAdminClient: ERROR

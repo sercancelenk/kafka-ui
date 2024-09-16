@@ -1,6 +1,6 @@
-package com.trendyol.kafka.stream.api.util;
+package com.trendyol.kafka.stream.api.infra.utils;
 
-import com.trendyol.kafka.stream.api.model.Models;
+import com.trendyol.kafka.stream.api.domain.Models;
 
 import java.util.Comparator;
 import java.util.PriorityQueue;

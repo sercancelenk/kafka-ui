@@ -1,4 +1,4 @@
-package com.trendyol.kafka.stream.api.model;
+package com.trendyol.kafka.stream.api.domain;
 
 import lombok.Builder;
 import lombok.Data;

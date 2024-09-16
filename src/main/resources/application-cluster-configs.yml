@@ -1,7 +1,7 @@
 kafka:
   clusters:
     local:
-      enable: false
+      enable: true
       id: local-cluster
       brokers: localhost:9092
       consume-settings:
@@ -12,90 +12,20 @@ kafka:
         consumerPoolSize: 1
         connectionsMaxIdleMs: 3600000
       admin-client-settings:
-        client.id: "admin-client-local"
-        connections.max.idle.ms: 300000  # 5 minutes for connection idle time
-        request.timeout.ms: 60000        # 60 seconds timeout for requests
-        retry.backoff.ms: 100            # 100 ms backoff between retries
-        retries: 10                      # 10 retry attempts for failed requests
-        metadata.max.age.ms: 300000      # 5 minutes before refreshing metadata
-        max.in.flight.requests.per.connection: 5  # Limit in-flight requests to avoid overwhelming connections
-        receive.buffer.bytes: 1048576    # 1MB receive buffer size
-        send.buffer.bytes: 1048576       # 1MB send buffer size
-        reconnect.backoff.max.ms: 1000   # 1 second maximum backoff for reconnect attempts
-        reconnect.backoff.ms: 50         # Initial reconnect backoff of 50 ms
-        socket.connection.setup.timeout.ms: 60000  # 60 seconds to establish a connection
-        socket.connection.setup.timeout.max.ms: 120000  # 2 minutes max to establish a connection
-        ssl.endpoint.identification.algorithm: ""  # Disable SSL hostname verification if required
-        security.protocol: "PLAINTEXT"  # Use "SSL" if needed for production, but "PLAINTEXT" if no encryption
-    RXPy29MFQh20vBlfWEYlcw:
-      enable: true
-      id: RXPy29MFQh20vBlfWEYlcw
-      brokers: kfk-s-cdn-messaging-kafka-tribe-02-broker-1.mars.trendyol.com:9092, kfk-s-cdn-messaging-kafka-tribe-02-broker-2.mars.trendyol.com:9092, kfk-s-cdn-messaging-kafka-tribe-02-broker-1.venus.trendyol.com:9092, kfk-s-cdn-messaging-kafka-tribe-02-broker-2.venus.trendyol.com:9092
-      consume-settings:
-        offsetReset: earliest
-        sessionTimeout: 5000
-        clientId: kafkaStreamApi
-        autoCommit: false
-        consumerPoolSize: 1
-        connectionsMaxIdleMs: 3600000
-      admin-client-settings:
-        client.id: "admin-client-tribe-02"
-        connections.max.idle.ms: 300000  # 5 minutes for connection idle time
-        request.timeout.ms: 60000        # 60 seconds timeout for requests
-        retry.backoff.ms: 100            # 100 ms backoff between retries
-        retries: 10                      # 10 retry attempts for failed requests
-        metadata.max.age.ms: 300000      # 5 minutes before refreshing metadata
-        max.in.flight.requests.per.connection: 5  # Limit in-flight requests to avoid overwhelming connections
-        receive.buffer.bytes: 1048576    # 1MB receive buffer size
-        send.buffer.bytes: 1048576       # 1MB send buffer size
-        reconnect.backoff.max.ms: 1000   # 1 second maximum backoff for reconnect attempts
-        reconnect.backoff.ms: 50         # Initial reconnect backoff of 50 ms
-        socket.connection.setup.timeout.ms: 60000  # 60 seconds to establish a connection
-        socket.connection.setup.timeout.max.ms: 120000  # 2 minutes max to establish a connection
-        ssl.endpoint.identification.algorithm: ""  # Disable SSL hostname verification if required
-        security.protocol: "PLAINTEXT"  # Use "SSL" if needed for production, but "PLAINTEXT" if no encryption
-      secure-settings:
-        jaasUser: brod
-        jaasPass: GgaFxX7CX6PyxAiRdIEe
-        security.protocol: SASL_SSL
-        sasl.mechanism: SCRAM-SHA-512
-        sasl.jaas.config: "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"brod\" password=\"GgaFxX7CX6PyxAiRdIEe\";"
-        ssl.truststore.location: src/main/resources/ssl/client-truststore-jks-1707820041467
-        ssl.truststore.password: hCSmZqAZJ5bxNv2DPj6V
-        ssl.endpoint.identification.algorithm: https
-    tribe02stage:
-      enable: false
-      id: tribe02stage
-      brokers: kfk-s-cdn-messaging-kafka-tribe-02-broker-1.mars.trendyol.com:9092, kfk-s-cdn-messaging-kafka-tribe-02-broker-2.mars.trendyol.com:9092, kfk-s-cdn-messaging-kafka-tribe-02-broker-1.venus.trendyol.com:9092, kfk-s-cdn-messaging-kafka-tribe-02-broker-2.venus.trendyol.com:9092
-      consume-settings:
-        offsetReset: earliest
-        sessionTimeout: 5000
-        clientId: kafkaStreamApi
-        autoCommit: false
-        consumerPoolSize: 1
-        connectionsMaxIdleMs: 3600000
-      admin-client-settings:
-        client.id: "admin-client-tribe-02"
-        connections.max.idle.ms: 300000  # 5 minutes for connection idle time
-        request.timeout.ms: 60000        # 60 seconds timeout for requests
-        retry.backoff.ms: 100            # 100 ms backoff between retries
-        retries: 10                      # 10 retry attempts for failed requests
-        metadata.max.age.ms: 300000      # 5 minutes before refreshing metadata
-        max.in.flight.requests.per.connection: 5  # Limit in-flight requests to avoid overwhelming connections
-        receive.buffer.bytes: 1048576    # 1MB receive buffer size
-        send.buffer.bytes: 1048576       # 1MB send buffer size
-        reconnect.backoff.max.ms: 1000   # 1 second maximum backoff for reconnect attempts
-        reconnect.backoff.ms: 50         # Initial reconnect backoff of 50 ms
-        socket.connection.setup.timeout.ms: 60000  # 60 seconds to establish a connection
-        socket.connection.setup.timeout.max.ms: 120000  # 2 minutes max to establish a connection
-        ssl.endpoint.identification.algorithm: ""  # Disable SSL hostname verification if required
-        security.protocol: "PLAINTEXT"  # Use "SSL" if needed for production, but "PLAINTEXT" if no encryption
-      secure-settings:
-        jaasUser: project-oyzcrgrw.bee-test-app.guser
-        jaasPass: OyaYgqH4j8Nd_44ym_B6
-        security.protocol: SASL_SSL
-        sasl.mechanism: SCRAM-SHA-512
-        sasl.jaas.config: "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"project-oyzcrgrw.bee-test-app.guser\" password=\"OyaYgqH4j8Nd_44ym_B6\";"
-        ssl.truststore.location: src/main/resources/ssl/client-truststore-jks-1707820041467
-        ssl.truststore.password: hCSmZqAZJ5bxNv2DPj6V
-        ssl.endpoint.identification.algorithm: https
+        "[client.id]": "admin-client-local"
+        "[connections.max.idle.ms]": 300000  # 5 minutes for connection idle time
+        "[request.timeout.ms]": 5000        # 60 seconds timeout for requests
+        "[default.api.timeout.ms]": 5000
+        "[retry.backoff.ms]": 100            # 100 ms backoff between retries
+        "[retries]": 10 # 10 retry attempts for failed requests
+        "[metadata.max.age.ms]": 300000      # 5 minutes before refreshing metadata
+        "[max.in.flight.requests.per.connection]": 5  # Limit in-flight requests to avoid overwhelming connections
+        "[receive.buffer.bytes]": 1048576    # 1MB receive buffer size
+        "[send.buffer.bytes]": 1048576       # 1MB send buffer size
+        "[reconnect.backoff.max.ms]": 1000   # 1 second maximum backoff for reconnect attempts
+        "[reconnect.backoff.ms]": 50         # Initial reconnect backoff of 50 ms
+        "[socket.connection.setup.timeout.ms]": 5000  # 60 seconds to establish a connection
+        "[socket.connection.setup.timeout.max.ms]": 10000  # 2 minutes max to establish a connection
+        "[ssl.endpoint.identification.algorithm]": ""  # Disable SSL hostname verification if required
+        "[security.protocol]": "PLAINTEXT"  # Use "SSL" if needed for production, but "PLAINTEXT" if no encryption
+

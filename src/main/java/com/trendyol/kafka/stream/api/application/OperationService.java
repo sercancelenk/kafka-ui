@@ -1,9 +1,8 @@
-package com.trendyol.kafka.stream.api.service;
+package com.trendyol.kafka.stream.api.application;
 
-import com.trendyol.kafka.stream.api.controller.context.RequestContext;
-import com.trendyol.kafka.stream.api.model.Exceptions;
-import com.trendyol.kafka.stream.api.model.Models;
-import com.trendyol.kafka.stream.api.service.manager.KafkaWrapper;
+import com.trendyol.kafka.stream.api.adapters.kafka.manager.KafkaWrapper;
+import com.trendyol.kafka.stream.api.domain.Exceptions;
+import com.trendyol.kafka.stream.api.domain.Models;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.admin.OffsetSpec;
 import org.apache.kafka.common.TopicPartition;
@@ -18,8 +17,7 @@ import java.util.concurrent.ExecutionException;
 public class OperationService {
     private final KafkaWrapper kafkaWrapper;
 
-    public void changeConsumerGroupOffset(String groupId, String topic, Models.OffsetSeek option, Long value) throws ExecutionException, InterruptedException {
-        String clusterId = RequestContext.getClusterId();
+    public void changeConsumerGroupOffset(String clusterId, String groupId, String topic, Models.OffsetSeek option, Long value) throws ExecutionException, InterruptedException {
         List<TopicPartitionInfo> partitions = kafkaWrapper.getPartitionsOfTopic(clusterId, topic);
 
         for (TopicPartitionInfo partitionInfo : partitions) {
@@ -29,8 +27,8 @@ public class OperationService {
                         kafkaWrapper.getOffsetForPartition(clusterId, topicPartition, OffsetSpec.earliest()).offset();
                 case END -> kafkaWrapper.getOffsetForPartition(clusterId, topicPartition, OffsetSpec.latest()).offset();
                 case DATE -> {
-                    boolean valid = validateTimestamp(topic, value);
-                    if(valid)
+                    boolean valid = validateTimestamp(clusterId, topic, value);
+                    if (valid)
                         yield kafkaWrapper.getOffsetForTimestamp(clusterId, topicPartition, value).offset();
                     else throw Exceptions.ChangeOffsetTimestampNotAcceptable.builder().build();
                 }
@@ -41,8 +39,7 @@ public class OperationService {
         }
     }
 
-    public boolean validateTimestamp(String topic, long timestamp) throws ExecutionException, InterruptedException {
-        String clusterId = RequestContext.getClusterId();
+    public boolean validateTimestamp(String clusterId, String topic, long timestamp) throws ExecutionException, InterruptedException {
         List<TopicPartitionInfo> partitions = kafkaWrapper.getPartitionsOfTopic(clusterId, topic);
         long earliestTimestamp = Long.MAX_VALUE;
         long latestTimestamp = Long.MIN_VALUE;

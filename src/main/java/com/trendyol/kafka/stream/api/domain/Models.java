@@ -1,6 +1,6 @@
-package com.trendyol.kafka.stream.api.model;
+package com.trendyol.kafka.stream.api.domain;
 
-import com.trendyol.kafka.stream.api.service.manager.ConsumerPool;
+import com.trendyol.kafka.stream.api.adapters.kafka.manager.ConsumerPool;
 import lombok.Builder;
 import org.apache.kafka.clients.admin.AdminClient;
 

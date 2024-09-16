@@ -1,9 +1,11 @@
-package com.trendyol.kafka.stream.api.controller.filter;
+package com.trendyol.kafka.stream.api.adapters.rest.filter;
 
-import com.trendyol.kafka.stream.api.model.Exceptions;
+import com.trendyol.kafka.stream.api.domain.Exceptions;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.errors.GroupAuthorizationException;
+import org.apache.kafka.common.errors.TimeoutException;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,8 +13,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 
 @RestControllerAdvice
 @RequiredArgsConstructor
@@ -30,17 +32,10 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, ex.getStatus());
     }
 
-    @ExceptionHandler({ExecutionException.class, InterruptedException.class, TimeoutException.class})
-    public ResponseEntity<Exceptions.ErrorResponse> handleExecutionException(Exception ex, Locale locale) {
-        log.error("Error occurred when requesting. ", ex);
-        if (ex.getCause() instanceof ExecutionException exx){
-            if (exx.getCause() instanceof GroupAuthorizationException){
-                Exceptions.ErrorResponse errorResponse = Exceptions.ErrorResponse.builder()
-                        .message("Authorization Exception")
-                        .build();
-                return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
-            }
-        }
+    @ExceptionHandler({Exceptions.ProcessExecutionException.class})
+    public ResponseEntity<Exceptions.ErrorResponse> handleExecutionException(Exceptions.ProcessExecutionException ex, Locale locale) {
+        log.error("Kafka Exception occurred. {}", ex.getMessage(), ex);
+
         Exceptions.ErrorResponse errorResponse = Exceptions.ErrorResponse.builder()
                 .message("Generic error")
                 .build();

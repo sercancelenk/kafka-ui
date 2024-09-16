@@ -1,12 +1,11 @@
-package com.trendyol.kafka.stream.api.service;
+package com.trendyol.kafka.stream.api.application;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import com.trendyol.kafka.stream.api.controller.context.RequestContext;
-import com.trendyol.kafka.stream.api.model.Models;
-import com.trendyol.kafka.stream.api.service.manager.KafkaWrapper;
-import com.trendyol.kafka.stream.api.util.ThreadLocalPriorityQueue;
+import com.trendyol.kafka.stream.api.adapters.kafka.manager.KafkaWrapper;
+import com.trendyol.kafka.stream.api.domain.Models;
+import com.trendyol.kafka.stream.api.infra.utils.ThreadLocalPriorityQueue;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +27,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -50,8 +48,9 @@ public class TopicService {
                     @Nonnull
                     public Models.TopicInfo load(@NonNull String compositeKey) throws ExecutionException, InterruptedException {
                         String[] keyParts = compositeKey.split(":", 2);
+                        String clusterId = keyParts[0];
                         String topicName = keyParts[1];
-                        return getTopicInfoUnCached(topicName);
+                        return getTopicInfoUnCached(clusterId, topicName);
                     }
                 });
 
@@ -69,11 +68,11 @@ public class TopicService {
                 });
     }
 
-    public List<Models.MessageInfo> getTopMessagesFromTopic(String topic, int maxMessagesToFetch) throws InterruptedException {
+    public List<Models.MessageInfo> getTopMessagesFromTopic(String clusterId, String topic, int maxMessagesToFetch) throws InterruptedException {
         KafkaConsumer<String, String> consumer = null;
         try {
             PriorityQueue<Models.MessageInfo> topMessagesQueue = ThreadLocalPriorityQueue.getPriorityQueue();
-            consumer = clusterAdminMap.get(RequestContext.getClusterId()).consumerPool().borrowConsumer();
+            consumer = clusterAdminMap.get(clusterId).consumerPool().borrowConsumer();
 
             List<TopicPartition> partitions = kafkaWrapper.getTopicPartitions(topic, consumer);
 
@@ -111,15 +110,15 @@ public class TopicService {
         } finally {
             // Return the consumer to the pool after processing
             if (consumer != null) {
-                clusterAdminMap.get(RequestContext.getClusterId()).consumerPool().returnConsumer(consumer);
+                clusterAdminMap.get(clusterId).consumerPool().returnConsumer(consumer);
             }
         }
     }
 
-    public Models.MessageInfo getOneMessageFromTopic(String topic, Optional<Integer> partitionOpt, Optional<Long> offsetOpt) throws InterruptedException {
+    public Models.MessageInfo getOneMessageFromTopic(String clusterId, String topic, Optional<Integer> partitionOpt, Optional<Long> offsetOpt) throws InterruptedException {
         KafkaConsumer<String, String> consumer = null;
         try {
-            consumer = clusterAdminMap.get(RequestContext.getClusterId()).consumerPool().borrowConsumer();
+            consumer = clusterAdminMap.get(clusterId).consumerPool().borrowConsumer();
 
             // If partition is provided
             if (partitionOpt.isPresent()) {
@@ -147,18 +146,18 @@ public class TopicService {
         } finally {
             // Return the consumer to the pool after processing
             if (consumer != null) {
-                clusterAdminMap.get(RequestContext.getClusterId()).consumerPool().returnConsumer(consumer);
+                clusterAdminMap.get(clusterId).consumerPool().returnConsumer(consumer);
             }
         }
     }
 
-    public Models.TopicInfo getTopicInfo(String topicName) throws ExecutionException {
-        String compositeKey = RequestContext.getClusterId() + ":" + topicName;
+    public Models.TopicInfo getTopicInfo(String clusterId, String topicName) throws ExecutionException {
+        String compositeKey = clusterId + ":" + topicName;
         return topicInfoCache.get(compositeKey);
     }
 
-    public Map<String, Long> getLagCount(String topicName, String groupId) throws ExecutionException, InterruptedException {
-        try (AdminClient adminClient = clusterAdminMap.get(RequestContext.getClusterId()).adminClient()) {
+    public Map<String, Long> getLagCount(String clusterId, String topicName, String groupId) throws ExecutionException, InterruptedException {
+        try (AdminClient adminClient = clusterAdminMap.get(clusterId).adminClient()) {
             Map<String, Long> lagCount = new HashMap<>();
 
             TopicDescription topicDescription = adminClient.describeTopics(Collections.singletonList(topicName))
@@ -189,11 +188,9 @@ public class TopicService {
         }
     }
 
-    private Models.TopicInfo getTopicInfoUnCached(String topicName) throws ExecutionException, InterruptedException {
+    private Models.TopicInfo getTopicInfoUnCached(String clusterId, String topicName) throws ExecutionException, InterruptedException {
         Models.TopicInfo.TopicInfoBuilder builder = Models.TopicInfo.builder();
         Map<String, Object> topicConfig = new HashMap<>();
-
-        String clusterId = RequestContext.getClusterId();
 
         builder.clusterId(clusterId);
         builder.name(topicName);
@@ -205,7 +202,7 @@ public class TopicService {
 
         // Fetch the retention period
         ConfigResource configResource = new ConfigResource(ConfigResource.Type.TOPIC, topicName);
-        Config config = clusterAdminMap.get(RequestContext.getClusterId()).adminClient()
+        Config config = clusterAdminMap.get(clusterId).adminClient()
                 .describeConfigs(Collections.singletonList(configResource))
                 .values()
                 .get(configResource)
@@ -220,14 +217,14 @@ public class TopicService {
         Map<String, Integer> replicas = new ConcurrentHashMap<>();
         for (TopicPartitionInfo tpi : topicDescription.partitions()) {
             TopicPartition partition = new TopicPartition(topicName, tpi.partition());
-            ListOffsetsResult.ListOffsetsResultInfo earliest = clusterAdminMap.get(RequestContext.getClusterId()).adminClient().listOffsets(
+            ListOffsetsResult.ListOffsetsResultInfo earliest = clusterAdminMap.get(clusterId).adminClient().listOffsets(
                     Collections.singletonMap(partition, OffsetSpec.earliest())).partitionResult(partition).get();
-            ListOffsetsResult.ListOffsetsResultInfo latest = clusterAdminMap.get(RequestContext.getClusterId()).adminClient().listOffsets(
+            ListOffsetsResult.ListOffsetsResultInfo latest = clusterAdminMap.get(clusterId).adminClient().listOffsets(
                     Collections.singletonMap(partition, OffsetSpec.latest())).partitionResult(partition).get();
 
             long partitionMessageCount = latest.offset() - earliest.offset();
             totalMessageCount += partitionMessageCount;
-            tpi.replicas().forEach(node -> replicas.putIfAbsent(node.host() + ":" +node.port(), 1));
+            tpi.replicas().forEach(node -> replicas.putIfAbsent(node.host() + ":" + node.port(), 1));
         }
         builder.messageCount(totalMessageCount);
         builder.replicas(replicas.size());
@@ -238,8 +235,8 @@ public class TopicService {
         return builder.build();
     }
 
-    public Models.PaginatedResponse<String> getTopicListUnCached(int page, int size) throws ExecutionException, InterruptedException {
-        List<String> allTopics = allTopicNameListCache.get("allTopicNames:" + RequestContext.getClusterId());
+    public Models.PaginatedResponse<String> getTopicListUnCached(String clusterId, int page, int size) throws ExecutionException {
+        List<String> allTopics = allTopicNameListCache.get("allTopicNames:" + clusterId);
 
         int totalItems = allTopics.size();
         int totalPages = (int) Math.ceil((double) totalItems / size);

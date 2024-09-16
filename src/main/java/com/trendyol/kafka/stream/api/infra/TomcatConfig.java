@@ -1,4 +1,4 @@
-package com.trendyol.kafka.stream.api.config;
+package com.trendyol.kafka.stream.api.infra;
 
 import org.apache.coyote.http11.AbstractHttp11Protocol;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;

@@ -1,15 +1,39 @@
 resilience4j:
+
   circuitbreaker:
     instances:
       getConsumerGroups:
-        slidingWindowType: COUNT_BASED             # Monitor a fixed number of calls
-        slidingWindowSize: 10                      # Evaluate the last 50 calls
-        failureRateThreshold: 20                   # Open circuit when 50% of calls fail
-        minimumNumberOfCalls: 1                   # Start evaluating after at least 10 calls
-        waitDurationInOpenState: 120s               # Circuit stays open for 30 seconds
+        registerHealthIndicator: true
+        permittedNumberOfCallsInHalfOpenState: 3
+        slidingWindowType: TIME_BASED
+        eventConsumerBufferSize: 10
+        slidingWindowSize: 10                # Monitor over a 20-second window
+        minimumNumberOfCalls: 5              # Minimum number of calls to evaluate (helps avoid opening too early)
+        failureRateThreshold: 50             # Percentage of failed calls (in this case, 50%)
+        waitDurationInOpenState: 120s         # Time for which the circuit breaker stays open before retrying
+        automaticTransitionFromOpenToHalfOpenEnabled: true
         recordExceptions:
           - java.util.concurrent.TimeoutException  # Record only TimeoutException
-        automaticTransitionFromOpenToHalfOpenEnabled: true  # Automatically transition back to HALF_OPEN after wait time
+          - org.apache.kafka.common.errors.TimeoutException
+          - java.util.concurrent.ExecutionException
+          - com.trendyol.kafka.stream.api.domain.Exceptions.ProcessExecutionException
         ignoreExceptions:
           - java.lang.IllegalArgumentException     # Ignore some exceptions if needed
           - org.springframework.web.client.HttpClientErrorException # Ig
+
+#  retry:
+#    configs:
+#      default:
+#        maxAttempts: 4
+#        waitDuration: 1000
+#        enableExponentialBackoff: true
+#        exponentialBackoffMultiplier: 2
+
+
+
+
+
+
+
+
+
