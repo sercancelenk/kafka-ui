@@ -66,7 +66,6 @@ public class TopicController {
             @Parameter(description = "Size of the page (number of topics per page)", example = "10")
             @RequestParam(defaultValue = "10") int size
     ) throws ExecutionException, InterruptedException {
-        log.info("Incomint list topics request");
         return kafkaTopMessagesService.getTopicListUnCached(clusterId, page, size);
     }
 }

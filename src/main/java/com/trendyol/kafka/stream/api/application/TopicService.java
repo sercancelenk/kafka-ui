@@ -1,8 +1,7 @@
 package com.trendyol.kafka.stream.api.application;
 
-import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
+import com.trendyol.kafka.stream.api.adapters.cache.guava.CacheService;
 import com.trendyol.kafka.stream.api.adapters.kafka.manager.KafkaWrapper;
 import com.trendyol.kafka.stream.api.domain.Models;
 import com.trendyol.kafka.stream.api.infra.utils.ThreadLocalPriorityQueue;
@@ -35,37 +34,34 @@ public class TopicService {
     private final Map<String, Models.ClusterAdminInfo> clusterAdminMap;
     private final KafkaWrapper kafkaWrapper;
     private final Integer cacheTimeoutSeconds = 5;
-    private LoadingCache<String, Models.TopicInfo> topicInfoCache;
-    private LoadingCache<String, List<String>> allTopicNameListCache;
+    private final CacheService cacheService;
 
     @PostConstruct
     public void init() {
-        topicInfoCache = CacheBuilder.newBuilder()
-                .expireAfterWrite(cacheTimeoutSeconds, TimeUnit.SECONDS)  // Cache entry expiration time
-                .maximumSize(100)  // Maximum number of cache entries
-                .build(new CacheLoader<>() {
+        cacheService.createCache(CacheService.CacheOwnerKey.TOPIC_INFO,
+                cacheTimeoutSeconds, TimeUnit.SECONDS,
+                new CacheLoader<>() {
                     @Override
                     @Nonnull
                     public Models.TopicInfo load(@NonNull String compositeKey) throws ExecutionException, InterruptedException {
-                        String[] keyParts = compositeKey.split(":", 2);
-                        String clusterId = keyParts[0];
-                        String topicName = keyParts[1];
+                        String[] keyParts = compositeKey.split(":", 5);
+                        String clusterId = keyParts[2];
+                        String topicName = keyParts[4];
                         return getTopicInfoUnCached(clusterId, topicName);
                     }
                 });
-
-        allTopicNameListCache = CacheBuilder.newBuilder()
-                .expireAfterWrite(cacheTimeoutSeconds, TimeUnit.SECONDS)  // Cache entry expiration time
-                .maximumSize(100)  // Maximum number of cache entries
-                .build(new CacheLoader<>() {
+        cacheService.createCache(CacheService.CacheOwnerKey.TOPICS_ALL,
+                cacheTimeoutSeconds, TimeUnit.SECONDS,
+                new CacheLoader<>() {
                     @Override
                     @Nonnull
                     public List<String> load(@Nonnull String allTopicsByClusterIdKey) {
-                        String[] keyParts = allTopicsByClusterIdKey.split(":", 2);
-                        String clusterId = keyParts[1];
+                        String[] keyParts = allTopicsByClusterIdKey.split(":", 3);
+                        String clusterId = keyParts[2];
                         return kafkaWrapper.getAllTopics(clusterId, true);
                     }
                 });
+
     }
 
     public List<Models.MessageInfo> getTopMessagesFromTopic(String clusterId, String topic, int maxMessagesToFetch) throws InterruptedException {
@@ -152,8 +148,7 @@ public class TopicService {
     }
 
     public Models.TopicInfo getTopicInfo(String clusterId, String topicName) throws ExecutionException {
-        String compositeKey = clusterId + ":" + topicName;
-        return topicInfoCache.get(compositeKey);
+        return cacheService.getFromCache(CacheService.CacheOwnerKey.TOPIC_INFO, clusterId, topicName);
     }
 
     public Map<String, Long> getLagCount(String clusterId, String topicName, String groupId) throws ExecutionException, InterruptedException {
@@ -236,7 +231,7 @@ public class TopicService {
     }
 
     public Models.PaginatedResponse<String> getTopicListUnCached(String clusterId, int page, int size) throws ExecutionException {
-        List<String> allTopics = allTopicNameListCache.get("allTopicNames:" + clusterId);
+        List<String> allTopics = cacheService.getFromCache(CacheService.CacheOwnerKey.TOPICS_ALL, clusterId);
 
         int totalItems = allTopics.size();
         int totalPages = (int) Math.ceil((double) totalItems / size);

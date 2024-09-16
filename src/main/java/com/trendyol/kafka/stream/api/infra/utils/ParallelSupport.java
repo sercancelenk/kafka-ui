@@ -1,10 +1,13 @@
 package com.trendyol.kafka.stream.api.infra.utils;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+@Slf4j
 public class ParallelSupport {
 
     public interface ExecuteFunc<I, R> {
@@ -12,10 +15,8 @@ public class ParallelSupport {
     }
 
     public static <I, R> List<R> forkJoinCollect(ExecuteFunc<I, R> func, List<I> input) {
-        // Create an executor that uses virtual threads for each task
-        ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
-        try {
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             // Parallel processing using virtual threads
             return input.stream()
                     .map(inp -> CompletableFuture.supplyAsync(() -> {
@@ -23,15 +24,13 @@ public class ParallelSupport {
                         try {
                             execute = func.execute(inp);
                         } catch (Exception ex) {
-                            System.err.println("Error occurred at execute function in ParallelSupport: " + inp);
+                            log.error("Error occurred at execute function. Input {}. Detail: {}", inp, ex.getMessage(), ex);
                         }
                         return execute;
                     }, executor)).toList()
                     .stream()
                     .map(CompletableFuture::join)
                     .toList();
-        } finally {
-            executor.shutdown(); // Ensure the executor is shut down after use
         }
     }
 }

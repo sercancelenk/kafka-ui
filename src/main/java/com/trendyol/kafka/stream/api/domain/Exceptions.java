@@ -51,7 +51,6 @@ public class Exceptions {
             this.code = code;
             this.status = status;
             this.params = params;
-
         }
     }
 

@@ -1,11 +1,9 @@
 package com.trendyol.kafka.stream.api.application;
 
-import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
+import com.trendyol.kafka.stream.api.adapters.cache.guava.CacheService;
 import com.trendyol.kafka.stream.api.adapters.kafka.manager.KafkaWrapper;
 import com.trendyol.kafka.stream.api.domain.Models;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,43 +28,55 @@ import java.util.stream.Collectors;
 public class ConsumerService {
     private final KafkaWrapper kafkaWrapper;
     private final Integer cacheTimeoutSeconds = 5;
-
-    private LoadingCache<String, List<Models.ConsumerGroupInfo>> consumerGroupCache;
+    private final CacheService cacheService;
 
     @PostConstruct
     public void init() {
-        this.consumerGroupCache = CacheBuilder.newBuilder()
-                .expireAfterWrite(cacheTimeoutSeconds, TimeUnit.SECONDS)  // Cache entry expiration time
-                .maximumSize(100)  // Maximum number of cached entries
-                .build(new CacheLoader<>() {
+        cacheService.<List<String>>createCache(CacheService.CacheOwnerKey.CONSUMER_GROUP_ALL_CACHE,
+                1, TimeUnit.MINUTES,
+                new CacheLoader<>() {
+                    @Override
+                    public List<String> load(String key) throws ExecutionException, InterruptedException {
+                        //allgroups:clusterid:cluster-1
+                        String[] splittedKey = key.split(":");
+                        String clusterId = splittedKey[2];
+                        return kafkaWrapper.listConsumerGroupIds(clusterId);
+                    }
+                });
+
+        cacheService.<List<Models.ConsumerGroupInfo>>createCache(CacheService.CacheOwnerKey.CONSUMER_GROUP_BY_TOPIC,
+                1, TimeUnit.MINUTES,
+                new CacheLoader<>() {
                     @Override
                     public List<Models.ConsumerGroupInfo> load(String key) throws ExecutionException, InterruptedException {
-                        //clusterid:cluster-1:topic:demo.topic.1
-                        //clusterid:cluster-1:group:demo.topic.1
-                        if (key.contains(":topic:")) {
-                            String[] splittedKey = key.split(":");
-                            String clusterId = splittedKey[1];
-                            String topic = splittedKey[3];
+                        //consumergroups:clusterid:%s:topic:%s
+                        String[] splittedKey = key.split(":");
+                        String clusterId = splittedKey[2];
+                        String topic = splittedKey[4];
+                        return getConsumerGroupInfoByTopicUncached(clusterId, topic);
+                    }
+                });
 
-                            return getConsumerGroupInfoByTopicUncached(clusterId, topic);
-                        } else {
-                            String[] splittedKey = key.split(":");
-                            String clusterId = splittedKey[1];
-                            String group = splittedKey[3];
-                            return getConsumerGroupInfoByGroupIdUncached(clusterId, group);
-                        }
+        cacheService.<List<Models.ConsumerGroupInfo>>createCache(CacheService.CacheOwnerKey.CONSUMER_GROUP_BY_GROUP,
+                1, TimeUnit.MINUTES,
+                new CacheLoader<>() {
+                    @Override
+                    public List<Models.ConsumerGroupInfo> load(String key) throws ExecutionException, InterruptedException {
+                        //consumergroups:clusterid:%s:topic:%s
+                        String[] splittedKey = key.split(":");
+                        String clusterId = splittedKey[2];
+                        String topic = splittedKey[4];
+                        return getConsumerGroupInfoByGroupIdUncached(clusterId, topic);
                     }
                 });
     }
 
     public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByGroupId(String clusterId, String groupId) {
-//        return consumerGroupCache.get("clusterid:" + RequestContext.getClusterId() + ":group:" + groupId);  // Cache key is "clusterid:"+clusterId+":group:" + group
-        return getConsumerGroupInfoByGroupIdUncached(clusterId, groupId);
+        return cacheService.getFromCache(CacheService.CacheOwnerKey.CONSUMER_GROUP_BY_GROUP, clusterId, groupId);
     }
 
     public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByTopic(String clusterId, String topic) {
-//        return consumerGroupCache.get("clusterid:" + RequestContext.getClusterId() + ":topic:" + topic);
-        return getConsumerGroupInfoByTopicUncached(clusterId, topic);
+        return cacheService.getFromCache(CacheService.CacheOwnerKey.CONSUMER_GROUP_BY_GROUP,clusterId, topic);
     }
 
     public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByGroupIdUncached(String clusterId, String groupId) {
@@ -148,9 +158,10 @@ public class ConsumerService {
 
     }
 
-//    @CircuitBreaker(name = "getConsumerGroups", fallbackMethod = "getConsumerGroupsFallback")
+    //    @CircuitBreaker(name = "getConsumerGroups", fallbackMethod = "getConsumerGroupsFallback")
     public Models.PaginatedResponse<String> getConsumerGroupIdsPaginated(String clusterId, int page, int size) {
-        List<String> consumerGroups = kafkaWrapper.listConsumerGroupIds(clusterId);
+        List<String> consumerGroups = cacheService.getFromCache(CacheService.CacheOwnerKey.CONSUMER_GROUP_ALL_CACHE,
+                clusterId);
 
         int totalItems = consumerGroups.size();
         int totalPages = (int) Math.ceil((double) totalItems / size);

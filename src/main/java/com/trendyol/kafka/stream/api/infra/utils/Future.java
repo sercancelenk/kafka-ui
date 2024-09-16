@@ -4,7 +4,9 @@ import com.trendyol.kafka.stream.api.domain.Exceptions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.errors.ApiException;
+import org.apache.kafka.common.errors.TimeoutException;
 
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
 @Slf4j
@@ -17,13 +19,14 @@ public class Future {
             call = future.get();
             log.debug("{} ms -> " + format.toString(), (System.currentTimeMillis() - startTime), arguments);
             return call;
-        } catch (ExecutionException e) {
-            if (e.getCause() instanceof ApiException) {
+        } catch (ExecutionException | InterruptedException | TimeoutException e) {
+            if (Optional.ofNullable(e.getCause()).isPresent() && e.getCause() instanceof ApiException) {
                 throw (ApiException) e.getCause();
             }
             throw new Exceptions.ProcessExecutionException(e);
         } catch (Exception exception) {
-            throw new RuntimeException("Error for " + format, exception);
+            log.error("Future call generic exception {}", exception.getMessage(), exception);
+            throw new Exceptions.GenericException();
         }
     }
 
