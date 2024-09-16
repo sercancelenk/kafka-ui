@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @RequiredArgsConstructor
@@ -38,12 +39,16 @@ public class KafkaWrapper {
     public ConsumerGroupDescription getSingleConsumerGroupDescription(String clusterId, String groupId) {
         try {
             return getClusterAdmin(clusterId).adminClient()
-                    .describeConsumerGroups(Collections.singletonList(groupId)).
-                    describedGroups().get(groupId).get();
+                    .describeConsumerGroups(Collections.singletonList(groupId))
+                    .describedGroups()
+                    .get(groupId)
+                    .get();
         } catch (InterruptedException | ExecutionException e) {
             throw new Exceptions.ProcessExecutionException(e);
         }
     }
+
+
 
     public Models.MessageInfo extractMessage(ConsumerRecord<String, String> record) {
         String messageValue = record.value();
@@ -112,6 +117,32 @@ public class KafkaWrapper {
         } catch (InterruptedException | ExecutionException e) {
             throw new Exceptions.ProcessExecutionException(e);
         }
+    }
+
+    // Method to get message counts per partition
+    public long getMessageCount(String clusterId, String topic) throws InterruptedException, ExecutionException {
+        AtomicLong totalMessageCount = new AtomicLong(0);
+        try (KafkaConsumer<String, String> consumer = getClusterAdmin(clusterId).consumerPool().borrowConsumer()) {
+            // Get partition information for the topic
+            List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
+
+            // Create TopicPartition objects for each partition
+            List<TopicPartition> topicPartitions = partitionInfos.stream()
+                    .map(info -> new TopicPartition(topic, info.partition()))
+                    .toList();
+
+
+            for (TopicPartition tpi : topicPartitions) {
+                TopicPartition partition = new TopicPartition(topic, tpi.partition());
+                ListOffsetsResult.ListOffsetsResultInfo earliest = getClusterAdmin(RequestContext.getClusterId()).adminClient().listOffsets(
+                        Collections.singletonMap(partition, OffsetSpec.earliest())).partitionResult(partition).get();
+                ListOffsetsResult.ListOffsetsResultInfo latest = getClusterAdmin(RequestContext.getClusterId()).adminClient().listOffsets(
+                        Collections.singletonMap(partition, OffsetSpec.latest())).partitionResult(partition).get();
+
+                totalMessageCount.addAndGet(latest.offset() - earliest.offset());
+            }
+        }
+        return totalMessageCount.get();
     }
 
     public long getLatestOffset(String clusterId, TopicPartition tp) {
@@ -197,6 +228,7 @@ public class KafkaWrapper {
             throw new Exceptions.ProcessExecutionException(e);
         }
     }
+
 
     public long getCurrentOffsetOfPartition(String clusterId, String groupId, TopicPartition topicPartition) {
         try {

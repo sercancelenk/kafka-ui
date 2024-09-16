@@ -11,17 +11,24 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
+import org.apache.kafka.clients.admin.ListOffsetsResult;
+import org.apache.kafka.clients.admin.OffsetSpec;
+import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.KafkaFuture;
+import org.apache.kafka.common.TopicPartition;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toMap;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +36,7 @@ import java.util.stream.Collectors;
 public class ConsumerService {
     private final KafkaWrapper kafkaWrapper;
     private final Integer cacheTimeoutSeconds = 5;
+
     private LoadingCache<String, List<Models.ConsumerGroupInfo>> consumerGroupCache;
 
     @PostConstruct
@@ -112,7 +120,7 @@ public class ConsumerService {
                             long lag = latestOffset - committed;
 
                             totalLag.addAndGet(lag);
-                            totalMemberCount.incrementAndGet();
+
                             totalAssignedPartitions.incrementAndGet();
                             podMap.putIfAbsent(member.host(), 1);
 
@@ -139,7 +147,7 @@ public class ConsumerService {
                 .state(groupDescription.state().toString())
                 .partitionAssignor(StringUtils.isEmpty(groupDescription.partitionAssignor()) ? "NONE" : groupDescription.partitionAssignor())
                 .membersByTopic(membersByTopic)
-                .memberCount(totalMemberCount.get())
+                .memberCount(podMap.size())
                 .podCount(podMap.size())
                 .assignedTopicCount(membersByTopic.keySet().size())
                 .assignedPartitionsCount(totalAssignedPartitions.get())

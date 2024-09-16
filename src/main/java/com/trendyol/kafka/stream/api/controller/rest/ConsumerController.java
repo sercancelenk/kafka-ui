@@ -1,5 +1,6 @@
 package com.trendyol.kafka.stream.api.controller.rest;
 
+import com.trendyol.kafka.stream.api.model.Exceptions;
 import com.trendyol.kafka.stream.api.model.Models;
 import com.trendyol.kafka.stream.api.service.ConsumerService;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -10,6 +11,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequiredArgsConstructor
 @RequestMapping("consumers")
 public class ConsumerController {
-    private final ConsumerService consumerService;
+    private final ConsumerService consumerService; //Constructor injection
 
     @Operation(summary = "Get Consumer Group Info by Topic", description = "Retrieve a list of consumer groups that are consuming from the specified Kafka topic.")
     @ApiResponses(value = {
@@ -36,7 +38,6 @@ public class ConsumerController {
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
     @GetMapping("/consumer-group-info-by-topic")
-    @CircuitBreaker(name = "kafkaAdminClientCircuitBreaker", fallbackMethod = "getConsumerGroupInfoFallback")
     public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByTopic(
             @RequestParam String topic) throws ExecutionException, InterruptedException {
         return consumerService.getConsumerGroupInfoByTopic(topic);
@@ -51,7 +52,6 @@ public class ConsumerController {
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
     @GetMapping("/consumer-group-info-by-group-id")
-    @CircuitBreaker(name = "getConsumerGroupInfoByGroupId", fallbackMethod = "getConsumerGroupInfoFallback")
     public List<Models.ConsumerGroupInfo> getConsumerGroupInfoByGroupId(
             @RequestParam String groupId) throws ExecutionException, InterruptedException {
         return consumerService.getConsumerGroupInfoByGroupId(groupId);
@@ -78,11 +78,6 @@ public class ConsumerController {
         return ResponseEntity.ok(consumerGroups);
     }
 
-    // Fallback methods
-    public List<Models.ConsumerGroupInfo> getConsumerGroupInfoFallback(String groupId, Throwable throwable) {
-        System.out.println("Circuit breaker triggered for getConsumerGroupInfoByGroupId");
-        return Collections.emptyList();
-    }
 
     public ResponseEntity<Models.PaginatedResponse<Object>> getConsumerGroupsFallback(int page, int size, Throwable throwable) {
         System.out.println("Circuit breaker triggered for getConsumerGroups");

@@ -124,6 +124,31 @@ public class OpenApiConfig {
                 .build();
     }
 
+    @Bean
+    public GroupedOpenApi searchApi() {
+        return GroupedOpenApi.builder()
+                .group("Search")
+                .pathsToMatch("/search/**")
+                .addOperationCustomizer((operation, handlerMethod) -> {
+                    operation.addParametersItem(new Parameter()
+                            .in("header")
+                            .name("x-project-id")
+                            .required(true)
+                            .description("Project Id")
+                            .schema(new Schema<>().type("string").example("project-x")));
+
+                    operation.addParametersItem(new Parameter()
+                            .in("header")
+                            .name("x-cluster-id")
+                            .required(true)
+                            .description("Cluster Id")
+                            .schema(new Schema<>().type("string").example("clusterid")));
+
+                    return operation;
+                })
+                .build();
+    }
+
 
 //    @RestController
 //    @RequestMapping("/")

@@ -29,10 +29,13 @@ server:
     accept-count: 1000
 logging:
   level:
-    com.trendyol.kafka.stream.api.service.manager.ConsumerPool: DEBUG
+    ROOT: INFO
+    org.apache.kafka.streams: TRACE
+    com.trendyol.kafka.stream.api.service.manager.ConsumerPool: ERROR
     org.apache.kafka.common.telemetry.internals.KafkaMetricsCollector: ERROR
-    org.apache.kafka.clients.admin: DEBUG
-    org.apache.kafka.clients.admin.KafkaAdminClient: TRACE
+    org.apache.kafka.clients.admin: ERROR
+    org.apache.kafka.clients.admin.KafkaAdminClient: ERROR
+    org.apache.kafka.clients.NetworkClient: ERROR
 
 ---
 spring:

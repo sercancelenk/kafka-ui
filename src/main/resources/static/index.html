@@ -305,6 +305,7 @@
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.6/dist/umd/popper.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
     const baseUrl = "http://localhost:8087";
@@ -344,69 +345,57 @@
     }
 
     function applyConsumerGroupTable(infoList, component) {
-        console.log(component)
 
-        let data = infoList[0]
         $('#' + component).html = ''
         $('#' + component).html('');
-
         const container = $('#' + component);
 
+        $.each(infoList, function (i) {
+            let d = infoList[i]
 
-        // Header for consumer group
-        container.append(`
-                <div class="row mt-5">
-                    <table class='table bg-white'>
-                    <thead class=''>
-                        <tr>
-                            <th>Id</th>
-                            <th>State</th>
-                            <th>Assignor</th>
-                            <th>Members</th>
-                            <th>Assigned Topics</th>
-                            <th>Total Lag</th>
-                         </tr>
-                    </thead>
+            container.append(`
+
+                <div class="row mt-1">
+                    <table class='table bg-light-blue'>
                     <tbody>
                         <tr>
-                            <td><span class="badge badge-info badge-2x">${data.groupId}</span></td>
-                            <td><span class="badge badge-warning badge-2x">${data.state}</span></td>
-                            <td><span class="badge badge-primary badge-2x">${data.partitionAssignor}</span></td>
-                            <td><span class="badge badge-info badge-2x">${data.memberCount}</span></td>
-                            <td><span class="badge badge-warning badge-2x">${data.assignedTopicCount}</span></td>
-                            <td><span class="badge badge-warning badge-2x">${data.totalLag}</span></td>
+                            <td><span class="badge badge-info badge-2x">${d.groupId}</span></td>
+                            <td><span class="badge badge-warning badge-2x">State: ${d.state}</span></td>
+                            <td>Assignor: ${d.partitionAssignor}</td>
+                            <td>MemberCount: ${d.memberCount}</td>
+                            <td>Topics: ${d.assignedTopicCount}</td>
+                            <td>Lag: ${d.totalLag}</td>
                         </tr>
                     </tbody>
                     </table>
-
                 </div>
 
         `);
 
-        // Loop through topics
-        $.each(data.membersByTopic, function (topic, members) {
-            let totalLag = 0;
-            members.forEach(member => {
-                totalLag += member.lag;
-            });
+            // Loop through topics
+            $.each(d.membersByTopic, function (topic, members) {
+                let totalLag = 0;
+                members.forEach(member => {
+                    totalLag += member.lag;
+                });
 
-            const topicId = `topic-${topic}`;
+                const topicId = `topic-${topic}`;
 
-            container.append(`
-              <div class="card mt-3">
-                <div class="card-header topic-header" id="${topicId}">
-                  <button class="btn btn-link accordion-button" type="button" data-toggle="collapse" data-target="#collapse-${topicId}" aria-expanded="true">
+                container.append(`
+              <div class="card mt-1 bg-white">
+                <div class="card-header  bg-white" id="${topicId}">
+                  <button class="btn btn-link accordion-button" type="button" data-toggle="collapse" data-target="#collapse-${topicId}" aria-expanded="false">
                   <div class="row">
                     <div class="col-md-2"><h5 class="text-dark">${topic}</h5></div>
-                    <div class="col-md-4 text-start"><span class="badge badge-danger badge-2x">Lag ${totalLag}</span><span class="badge badge-info badge-2x ml-1">Assigned Partitions ${members.length}</span></div>
+                    <div class="col-md-4 text-start"><span class="badge badge-danger">Lag ${totalLag}</span><span class="badge badge-secondary ml-1">Assigned Partitions ${members.length}</span></div>
 
                   </div>
                   </button>
                 </div>
                 <div id="collapse-${topicId}" class="collapse" data-parent="#consumer-group-details">
-                  <div class="card-body">
+                  <div class="card-body bg-white">
                     <table class="table table-bordered partition-table">
-                      <thead>
+                      <thead class="bg-light-blue">
                         <tr>
                           <th>Partition</th>
                           <th>Committed Offset</th>
@@ -423,21 +412,24 @@
               </div>
     `);
 
-            // Add partitions to the topic's table
-            const tableBody = $(`#table-body-${topicId}`);
-            members.forEach(member => {
-                const lagClass = member.lag === 0 ? 'no-lag-badge' : 'lag-badge';
-                tableBody.append(`
-        <tr>
-          <td>${member.partition}</td>
-          <td>${member.committedOffset}</td>
-          <td>${member.latestOffset}</td>
-          <td><span class="badge ${lagClass}">${member.lag}</span></td>
-          <td>${member.host}</td>
-        </tr>
-      `);
+                // Add partitions to the topic's table
+                const tableBody = $(`#table-body-${topicId}`);
+                members.forEach(member => {
+                    const lagClass = member.lag === 0 ? 'no-lag-badge' : 'lag-badge';
+                    tableBody.append(`
+                    <tr>
+                      <td>${member.partition}</td>
+                      <td>${member.committedOffset}</td>
+                      <td>${member.latestOffset}</td>
+                      <td><span class="badge ${lagClass}">${member.lag}</span></td>
+                      <td>${member.host}</td>
+                    </tr>
+                  `);
+                });
             });
         });
+
+
     }
 
     function formatTimestamp(timestamp) {
@@ -489,8 +481,11 @@
             .catch(error => console.error('Error fetching messages:', error));
     }
 
-    function getTopicInfo() {
-        const topicName = document.getElementById("topicInfo").value;
+    function getTopicInfo(p) {
+        let topicName = document.getElementById("topicInfo").value;
+        if (p !== undefined && p !== '') {
+            topicName = p
+        }
         const url = `${baseUrl}/topics/topic-info?topicName=${topicName}`;
 
         fetch(url, {headers: getHeaders()})

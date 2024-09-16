@@ -1,35 +1,15 @@
 resilience4j:
   circuitbreaker:
-    timelimiter:
-      instances:
-        getConsumerGroupInfoByTopic:
-          timeoutDuration: 60s
     instances:
-      getConsumerGroupInfoByTopic:
-        slidingWindowSize: 10
-        minimumNumberOfCalls: 5
-        failureRateThreshold: 50
-        waitDurationInOpenState: 10000
-      getConsumerGroupInfoByGroupId:
-        slidingWindowSize: 10
-        minimumNumberOfCalls: 5
-        failureRateThreshold: 50
-        waitDurationInOpenState: 10000
       getConsumerGroups:
-        slidingWindowSize: 10
-        minimumNumberOfCalls: 5
-        failureRateThreshold: 50
-        waitDurationInOpenState: 10000
-      kafkaAdminClientCircuitBreaker:
-        registerHealthIndicator: true
-        slidingWindowType: TIME_BASED            # Use time-based window instead of count-based
-        slidingWindowSize: 5                    # Set the time window to 60 seconds (1 minute)
-        minimumNumberOfCalls: 1                 # Minimum number of calls before evaluating failure rate
-        failureRateThreshold: 10                 # If 50% of the calls fail, open the circuit
-        waitDurationInOpenState: 5000           # Wait 10 seconds before moving to half-open state
-        permittedNumberOfCallsInHalfOpenState: 1 # Allow 3 test calls in half-open state
-        automaticTransitionFromOpenToHalfOpenEnabled: true
+        slidingWindowType: COUNT_BASED             # Monitor a fixed number of calls
+        slidingWindowSize: 10                      # Evaluate the last 50 calls
+        failureRateThreshold: 20                   # Open circuit when 50% of calls fail
+        minimumNumberOfCalls: 1                   # Start evaluating after at least 10 calls
+        waitDurationInOpenState: 120s               # Circuit stays open for 30 seconds
         recordExceptions:
-          - java.util.concurrent.TimeoutException  # Record TimeoutExceptions as failures
+          - java.util.concurrent.TimeoutException  # Record only TimeoutException
+        automaticTransitionFromOpenToHalfOpenEnabled: true  # Automatically transition back to HALF_OPEN after wait time
         ignoreExceptions:
           - java.lang.IllegalArgumentException     # Ignore some exceptions if needed
+          - org.springframework.web.client.HttpClientErrorException # Ig

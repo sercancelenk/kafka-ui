@@ -38,27 +38,7 @@ public class JKafkaStreamApiApplication {
     @Bean
     public CommandLineRunner runner(ApplicationContext applicationContext, ObjectMapper objectMapper) {
         return args -> {
-//            log.info("Commandlinerunner is fired");
-//            String[] beanNames = applicationContext.getBeanDefinitionNames();
-//            Arrays.sort(beanNames); // Sort bean names alphabetically for easier reading
-//
-//            log.info("Listing all Spring Boot beans:");
-//
-//            for (String beanName : beanNames) {
-//                log.info(beanName);
-//            }
-
-//            Thread vThread1 = Thread.ofVirtual().start(() -> produceMessages("topic1"));
-//            Thread vThread2 = Thread.ofVirtual().start(() -> produceMessages("topic2"));
-//            Thread vThread3 = Thread.ofVirtual().start(() -> produceMessages("topic3"));
-//            Thread vThread4 = Thread.ofVirtual().start(() -> produceMessages("topic4"));
 //            Thread vThread5 = Thread.ofVirtual().start(() -> produceMessages("topic5", objectMapper));
-//
-//            // Wait for both threads to complete
-//            vThread1.join();
-//            vThread2.join();
-//            vThread3.join();
-//            vThread4.join();
 //            vThread5.join();
         };
 
@@ -95,7 +75,8 @@ public class JKafkaStreamApiApplication {
         };
         for (int i = 1; i <= messageCount; i++) {
             String key = "key-" + i;
-            Message message = new Message(i, "message-" + i);
+
+            Message message = new Message(i, RandomNameGenerator.generateRandomName() + i);
             String value = asJson(mapper, message);
             String t = topic;//topic.concat(generateRandomNumber.apply(4).toString());
             // Create a producer record
@@ -140,6 +121,37 @@ public class JKafkaStreamApiApplication {
                 System.out.println("Topics deleted successfully.");
             } else {
                 System.out.println("No topics matched the pattern.");
+            }
+        }
+    }
+
+    public static class RandomNameGenerator {
+
+        // Array of random first names
+        private static final String[] firstNames = {
+                "John", "Jane", "Robert", "Emily", "Michael", "Sophia", "William", "Olivia", "James", "Isabella",
+                "David", "Mia", "Alexander", "Amelia", "Daniel", "Charlotte", "Matthew", "Avery", "Joseph", "Lily"
+        };
+
+        // Array of random surnames
+        private static final String[] lastNames = {
+                "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Martinez", "Hernandez",
+                "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee"
+        };
+
+        // Random name and surname generator function
+        public static String generateRandomName() {
+            Random random = new Random();
+            String firstName = firstNames[random.nextInt(firstNames.length)];
+            String lastName = lastNames[random.nextInt(lastNames.length)];
+            return firstName + " " + lastName;
+        }
+
+        // Main method to test the function
+        public static void main(String[] args) {
+            // Generate and print 5 random names
+            for (int i = 0; i < 5; i++) {
+                System.out.println(generateRandomName());
             }
         }
     }

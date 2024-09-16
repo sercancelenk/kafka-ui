@@ -28,7 +28,7 @@ public class HeaderCaptureFilter implements Filter {
         if (request instanceof HttpServletRequest httpServletRequest && response instanceof HttpServletResponse httpServletResponse) {
 
             String url = httpServletRequest.getRequestURI();
-            if(url.contains("/topics") || url.contains("/consumers")){
+            if(url.contains("/topics") || url.contains("/consumers") || url.contains("/search")){
                 // Validate required headers
                 for (String header : REQUIRED_HEADERS) {
                     String rhv = httpServletRequest.getHeader(header);

@@ -3,6 +3,7 @@ package com.trendyol.kafka.stream.api.controller.filter;
 import com.trendyol.kafka.stream.api.model.Exceptions;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.common.errors.GroupAuthorizationException;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +33,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({ExecutionException.class, InterruptedException.class, TimeoutException.class})
     public ResponseEntity<Exceptions.ErrorResponse> handleExecutionException(Exception ex, Locale locale) {
         log.error("Error occurred when requesting. ", ex);
+        if (ex.getCause() instanceof ExecutionException exx){
+            if (exx.getCause() instanceof GroupAuthorizationException){
+                Exceptions.ErrorResponse errorResponse = Exceptions.ErrorResponse.builder()
+                        .message("Authorization Exception")
+                        .build();
+                return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
+            }
+        }
         Exceptions.ErrorResponse errorResponse = Exceptions.ErrorResponse.builder()
                 .message("Generic error")
                 .build();
