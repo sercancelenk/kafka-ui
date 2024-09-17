@@ -4,6 +4,7 @@ import com.trendyol.kafka.stream.api.domain.Exceptions;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.common.errors.ApiException;
 import org.apache.kafka.common.errors.GroupAuthorizationException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.springframework.context.MessageSource;
@@ -34,6 +35,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({Exceptions.ProcessExecutionException.class})
     public ResponseEntity<Exceptions.ErrorResponse> handleExecutionException(Exceptions.ProcessExecutionException ex, Locale locale) {
+        log.error("Exception occurred. {}", ex.getMessage(), ex);
+
+        Exceptions.ErrorResponse errorResponse = Exceptions.ErrorResponse.builder()
+                .message("Generic error")
+                .build();
+        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler({ApiException.class})
+    public ResponseEntity<Exceptions.ErrorResponse> handleKafkaApiException(ApiException ex, Locale locale) {
         log.error("Kafka Exception occurred. {}", ex.getMessage(), ex);
 
         Exceptions.ErrorResponse errorResponse = Exceptions.ErrorResponse.builder()
@@ -41,5 +52,6 @@ public class GlobalExceptionHandler {
                 .build();
         return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+
 
 }

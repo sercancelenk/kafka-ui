@@ -4,7 +4,7 @@ import com.google.common.cache.CacheLoader;
 import com.trendyol.kafka.stream.api.adapters.cache.guava.CacheService;
 import com.trendyol.kafka.stream.api.adapters.kafka.manager.KafkaWrapper;
 import com.trendyol.kafka.stream.api.domain.Models;
-import com.trendyol.kafka.stream.api.infra.utils.ForkJoinSupport;
+import com.trendyol.kafka.stream.api.infra.utils.Future;
 import com.trendyol.kafka.stream.api.infra.utils.ThreadLocalPriorityQueue;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -212,7 +212,7 @@ public class TopicService {
         AtomicLong totalMessageCount = new AtomicLong(0L);
         Map<String, Integer> replicas = new ConcurrentHashMap<>();
 
-        ForkJoinSupport.execute((tpi) -> {
+        Future.forkJoin((tpi) -> {
             try {
                 TopicPartition partition = new TopicPartition(topicName, tpi.partition());
                 ListOffsetsResult.ListOffsetsResultInfo earliest = clusterAdminMap.get(clusterId).adminClient().listOffsets(
@@ -223,7 +223,6 @@ public class TopicService {
                 long partitionMessageCount = latest.offset() - earliest.offset();
                 totalMessageCount.addAndGet(partitionMessageCount);
                 tpi.replicas().forEach(node -> replicas.putIfAbsent(node.host() + ":" + node.port(), 1));
-                log.info("Execute func is finished for partition {}", tpi.partition());
             } catch (Exception ex) {
                 log.info("Execute func has an error while processing the partition {}", tpi.partition(), ex);
             }

@@ -6,8 +6,14 @@ import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.errors.ApiException;
 import org.apache.kafka.common.errors.TimeoutException;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 @Slf4j
 public class Future {
@@ -43,6 +49,44 @@ public class Future {
             throw new Exceptions.ProcessExecutionException(e);
         } catch (Exception exception) {
             throw new RuntimeException("Error for " + exception.getMessage(), exception);
+        }
+    }
+
+    public static <I, R> List<R> forkJoin(Function<I, R> func, List<I> input) {
+
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            // Parallel processing using virtual threads
+            return input.stream()
+                    .map(inp -> CompletableFuture.supplyAsync(() -> {
+                        R execute = null;
+                        try {
+                            execute = func.apply(inp);
+                        } catch (Exception ex) {
+                            log.error("Error occurred at execute function. Input {}. Detail: {}", inp, ex.getMessage(), ex);
+                        }
+                        return execute;
+                    }, executor)).toList()
+                    .stream()
+                    .map(CompletableFuture::join)
+                    .toList();
+        }
+    }
+
+    public static <I> void forkJoin(Consumer<I> func, List<I> input) {
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            input.stream()
+                    .map(inp -> CompletableFuture.runAsync(() -> {
+                        try {
+                            func.accept(inp);
+                        } catch (Exception ex) {
+                            log.error("Error occurred at execute function in ForkJoinSupport. {}", inp);
+                        }
+                    }, executor))
+                    .toList()
+                    .forEach(voidCompletableFuture -> {
+                        log.debug("Completable future join step.");
+                        voidCompletableFuture.join();
+                    });
         }
     }
 }
