@@ -6,15 +6,16 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 @Slf4j
-public class ParallelSupport {
+public class ForkJoinSupport {
 
-    public interface ExecuteFunc<I, R> {
+    public interface Func<I, R> {
         R execute(I input) throws Exception;
     }
 
-    public static <I, R> List<R> forkJoinCollect(ExecuteFunc<I, R> func, List<I> input) {
+    public static <I, R> List<R> execute(Func<I, R> func, List<I> input) {
 
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             // Parallel processing using virtual threads
@@ -31,6 +32,24 @@ public class ParallelSupport {
                     .stream()
                     .map(CompletableFuture::join)
                     .toList();
+        }
+    }
+
+    public static <I> void execute(Consumer<I> func, List<I> input) {
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            input.stream()
+                    .map(inp -> CompletableFuture.runAsync(() -> {
+                        try {
+                            func.accept(inp);
+                        } catch (Exception ex) {
+                            log.error("Error occurred at execute function in ForkJoinSupport. {}", inp);
+                        }
+                    }, executor))
+                    .toList()
+                    .forEach(voidCompletableFuture -> {
+                        log.debug("Completable future join step.");
+                        voidCompletableFuture.join();
+                    });
         }
     }
 }

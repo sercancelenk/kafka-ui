@@ -4,6 +4,7 @@ import com.google.common.cache.CacheLoader;
 import com.trendyol.kafka.stream.api.adapters.cache.guava.CacheService;
 import com.trendyol.kafka.stream.api.adapters.kafka.manager.KafkaWrapper;
 import com.trendyol.kafka.stream.api.domain.Models;
+import com.trendyol.kafka.stream.api.infra.utils.ForkJoinSupport;
 import com.trendyol.kafka.stream.api.infra.utils.ThreadLocalPriorityQueue;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,6 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.config.TopicConfig;
 import org.springframework.lang.NonNull;
@@ -26,6 +26,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @RequiredArgsConstructor
@@ -208,20 +209,27 @@ public class TopicService {
         builder.retentionDay(retentionDay);
 
         // Calculate total message count
-        long totalMessageCount = 0;
+        AtomicLong totalMessageCount = new AtomicLong(0L);
         Map<String, Integer> replicas = new ConcurrentHashMap<>();
-        for (TopicPartitionInfo tpi : topicDescription.partitions()) {
-            TopicPartition partition = new TopicPartition(topicName, tpi.partition());
-            ListOffsetsResult.ListOffsetsResultInfo earliest = clusterAdminMap.get(clusterId).adminClient().listOffsets(
-                    Collections.singletonMap(partition, OffsetSpec.earliest())).partitionResult(partition).get();
-            ListOffsetsResult.ListOffsetsResultInfo latest = clusterAdminMap.get(clusterId).adminClient().listOffsets(
-                    Collections.singletonMap(partition, OffsetSpec.latest())).partitionResult(partition).get();
 
-            long partitionMessageCount = latest.offset() - earliest.offset();
-            totalMessageCount += partitionMessageCount;
-            tpi.replicas().forEach(node -> replicas.putIfAbsent(node.host() + ":" + node.port(), 1));
-        }
-        builder.messageCount(totalMessageCount);
+        ForkJoinSupport.execute((tpi) -> {
+            try {
+                TopicPartition partition = new TopicPartition(topicName, tpi.partition());
+                ListOffsetsResult.ListOffsetsResultInfo earliest = clusterAdminMap.get(clusterId).adminClient().listOffsets(
+                        Collections.singletonMap(partition, OffsetSpec.earliest())).partitionResult(partition).get();
+                ListOffsetsResult.ListOffsetsResultInfo latest = clusterAdminMap.get(clusterId).adminClient().listOffsets(
+                        Collections.singletonMap(partition, OffsetSpec.latest())).partitionResult(partition).get();
+
+                long partitionMessageCount = latest.offset() - earliest.offset();
+                totalMessageCount.addAndGet(partitionMessageCount);
+                tpi.replicas().forEach(node -> replicas.putIfAbsent(node.host() + ":" + node.port(), 1));
+                log.info("Execute func is finished for partition {}", tpi.partition());
+            } catch (Exception ex) {
+                log.info("Execute func has an error while processing the partition {}", tpi.partition(), ex);
+            }
+        }, topicDescription.partitions());
+
+        builder.messageCount(totalMessageCount.get());
         builder.replicas(replicas.size());
 
         config.entries().forEach(entry -> topicConfig.putIfAbsent(entry.name(), entry.value()));

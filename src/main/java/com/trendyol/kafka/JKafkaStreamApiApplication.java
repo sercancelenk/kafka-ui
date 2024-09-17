@@ -66,7 +66,7 @@ public class JKafkaStreamApiApplication {
         record Message(Integer id, String name){}
 
         // Produce 1 million records
-        int messageCount = 200_000_000;
+        int messageCount = 1300;
         long startTime = System.currentTimeMillis();  // Start time for performance tracking
         Function<Integer, Integer> generateRandomNumber = (max) -> {
             Random random = new Random();
