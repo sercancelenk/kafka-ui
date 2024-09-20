@@ -28,7 +28,6 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 public class TopicService {
     private final KafkaWrapper kafkaWrapper;
-    private final Integer cacheTimeoutSeconds = 1;
 
     public List<Models.MessageInfo> getTopMessagesFromTopic(String clusterId, String topic, int maxMessagesToFetch) throws InterruptedException {
         KafkaConsumer<String, String> consumer = null;
@@ -53,7 +52,7 @@ public class TopicService {
 
                     // Add the message to the priority queue
                     topMessagesQueue.offer(messageInfo);
-                    if (topMessagesQueue.size() > maxMessagesToFetch) {
+                    if (topMessagesQueue.size() > maxMessagesToFetch*partitions.size()) {
                         topMessagesQueue.poll();
                     }
                 }
@@ -66,9 +65,9 @@ public class TopicService {
 
             // Sort messages by size and return the top N
             List<Models.MessageInfo> sortedMessages = new ArrayList<>(topMessagesQueue);
-            sortedMessages.sort(Comparator.comparingLong(Models.MessageInfo::offset).reversed());
+            sortedMessages.sort(Comparator.comparingLong(Models.MessageInfo::timestamp).reversed());
 
-            return sortedMessages;
+            return sortedMessages.subList(0, maxMessagesToFetch);
         } finally {
             // Return the consumer to the pool after processing
             if (consumer != null) {

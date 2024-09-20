@@ -38,7 +38,13 @@ public class JKafkaStreamApiApplication {
     @Bean
     public CommandLineRunner runner(ApplicationContext applicationContext, ObjectMapper objectMapper) {
         return args -> {
-//            Thread.ofVirtual().start(() -> produceMessages("topic1", objectMapper)).join();
+//            Thread.ofVirtual().start(() -> {
+//                try {
+//                    produceMessages("topic1", objectMapper);
+//                } catch (InterruptedException e) {
+//                    throw new RuntimeException(e);
+//                }
+//            }).join();
 //            Thread.ofVirtual().start(() -> produceMessages("topic2", objectMapper)).join();
 
         };
@@ -55,7 +61,7 @@ public class JKafkaStreamApiApplication {
         }
     }
 
-    public static void produceMessages(String topic, ObjectMapper mapper) {
+    public static void produceMessages(String topic, ObjectMapper mapper) throws InterruptedException {
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092"); // Kafka broker
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
@@ -75,6 +81,7 @@ public class JKafkaStreamApiApplication {
             return random.nextInt(max) + 1;
         };
         for (int i = 1; i <= messageCount; i++) {
+            Thread.sleep(1000);
             String key = "key-" + i;
 
             Message message = new Message(i, RandomNameGenerator.generateRandomName() + i);

@@ -43,6 +43,7 @@ public class ConsumerPool {
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, clusterInfo.consumeSettings().autoCommit());
         props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, clusterInfo.consumeSettings().sessionTimeout());
         props.put(ConsumerConfig.CLIENT_ID_CONFIG, clusterInfo.consumeSettings().clientId());
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 500);
         props.put("connections.max.idle.ms", clusterInfo.consumeSettings().connectionsMaxIdleMs());
         Optional.ofNullable(clusterInfo.secureSettings())
                 .ifPresent(props::putAll);
