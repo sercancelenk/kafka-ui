@@ -14,18 +14,17 @@ kafka:
       admin-client-settings:
         "[client.id]": "admin-client-local"
         "[connections.max.idle.ms]": 300000  # 5 minutes for connection idle time
-        "[request.timeout.ms]": 5000        # 60 seconds timeout for requests
-        "[default.api.timeout.ms]": 5000
+        "[request.timeout.ms]": 30000        # 60 seconds timeout for requests
+        "[default.api.timeout.ms]": 60000
         "[retry.backoff.ms]": 100            # 100 ms backoff between retries
-        "[retries]": 10 # 10 retry attempts for failed requests
         "[metadata.max.age.ms]": 300000      # 5 minutes before refreshing metadata
         "[max.in.flight.requests.per.connection]": 5  # Limit in-flight requests to avoid overwhelming connections
         "[receive.buffer.bytes]": 1048576    # 1MB receive buffer size
         "[send.buffer.bytes]": 1048576       # 1MB send buffer size
         "[reconnect.backoff.max.ms]": 1000   # 1 second maximum backoff for reconnect attempts
         "[reconnect.backoff.ms]": 50         # Initial reconnect backoff of 50 ms
-        "[socket.connection.setup.timeout.ms]": 5000  # 60 seconds to establish a connection
-        "[socket.connection.setup.timeout.max.ms]": 10000  # 2 minutes max to establish a connection
+        "[socket.connection.setup.timeout.ms]": 60000  # 60 seconds to establish a connection
+        "[socket.connection.setup.timeout.max.ms]": 120000  # 2 minutes max to establish a connection
         "[ssl.endpoint.identification.algorithm]": ""  # Disable SSL hostname verification if required
         "[security.protocol]": "PLAINTEXT"  # Use "SSL" if needed for production, but "PLAINTEXT" if no encryption
 

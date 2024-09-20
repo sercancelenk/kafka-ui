@@ -2,6 +2,7 @@ package com.trendyol.kafka.stream.api.adapters.kafka.manager;
 
 import com.trendyol.kafka.stream.api.domain.Exceptions;
 import com.trendyol.kafka.stream.api.domain.Models;
+import com.trendyol.kafka.stream.api.infra.CacheManagerConfig;
 import com.trendyol.kafka.stream.api.infra.utils.Future;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.admin.*;
@@ -11,8 +12,10 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
+import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.Headers;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -25,6 +28,8 @@ import java.util.concurrent.atomic.AtomicLong;
 @RequiredArgsConstructor
 public class KafkaWrapper {
     private final Map<String, Models.ClusterAdminInfo> clusterAdminManager;
+    private final ClusterInfoConfig clusterInfoConfig;
+    private final AdminClientService adminClientService;
     private final Long timeoutSeconds = 20L;
 
     public Models.ClusterAdminInfo getClusterAdmin(String clusterId) {
@@ -34,9 +39,32 @@ public class KafkaWrapper {
         throw Exceptions.ClusterNotSupportedException.builder().params(new Object[]{clusterId}).build();
     }
 
+    public AdminClient getAdminClient(String clusterId) {
+        return clusterAdminManager.get(clusterId).adminClient();
+    }
+
+    public ConsumerPool getConsumerPool(String clusterId) {
+        return clusterAdminManager.get(clusterId).consumerPool();
+    }
+
+    public Config describeTopicConfig(String clusterId, String topic){
+        ConfigResource configResource = new ConfigResource(ConfigResource.Type.TOPIC, topic);
+        return Future.call(getAdminClient(clusterId)
+                .describeConfigs(Collections.singletonList(configResource))
+                .values()
+                .get(configResource));
+    }
+
+    public ListOffsetsResult.ListOffsetsResultInfo listOffsets(String clusterId, TopicPartition partition, OffsetSpec offsetSpec) {
+        return Future.call(
+                getAdminClient(clusterId).listOffsets(
+                        Collections.singletonMap(partition, offsetSpec)).partitionResult(partition)
+        );
+    }
+
     public ConsumerGroupDescription getSingleConsumerGroupDescription(String clusterId, String groupId) {
         try {
-            return getClusterAdmin(clusterId).adminClient()
+            return getAdminClient(clusterId)
                     .describeConsumerGroups(Collections.singletonList(groupId))
                     .describedGroups()
                     .get(groupId)
@@ -82,7 +110,7 @@ public class KafkaWrapper {
 
     public List<String> listConsumerGroupIds(String clusterId) {
         try {
-            return getClusterAdmin(clusterId).adminClient()
+            return getAdminClient(clusterId)
                     .listConsumerGroups()
                     .all()
                     .get()
@@ -94,7 +122,7 @@ public class KafkaWrapper {
     }
 
     public boolean isOffsetBelongsToTopicInGroup(String clusterId, String groupId, String topic) {
-        return Future.call(getClusterAdmin(clusterId).adminClient().listConsumerGroupOffsets(groupId)
+        return Future.call(getAdminClient(clusterId).listConsumerGroupOffsets(groupId)
                         .partitionsToOffsetAndMetadata())
                 .entrySet().stream()
                 .anyMatch(entry -> entry.getKey().topic().equals(topic));
@@ -103,7 +131,7 @@ public class KafkaWrapper {
 
     public OffsetAndMetadata getCommittedOffset(String clusterId, String groupId, TopicPartition tp) {
         return Future.call(
-                        getClusterAdmin(clusterId).adminClient()
+                        getAdminClient(clusterId)
                                 .listConsumerGroupOffsets(groupId)
                                 .partitionsToOffsetAndMetadata())
                 .get(tp);
@@ -112,7 +140,7 @@ public class KafkaWrapper {
     // Method to get message counts per partition
     public long getMessageCount(String clusterId, String topic) throws InterruptedException, ExecutionException {
         AtomicLong totalMessageCount = new AtomicLong(0);
-        try (KafkaConsumer<String, String> consumer = getClusterAdmin(clusterId).consumerPool().borrowConsumer()) {
+        try (KafkaConsumer<String, String> consumer = getConsumerPool(clusterId).borrowConsumer()) {
             // Get partition information for the topic
             List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
 
@@ -124,9 +152,9 @@ public class KafkaWrapper {
 
             for (TopicPartition tpi : topicPartitions) {
                 TopicPartition partition = new TopicPartition(topic, tpi.partition());
-                ListOffsetsResult.ListOffsetsResultInfo earliest = Future.call(getClusterAdmin(clusterId).adminClient().listOffsets(
+                ListOffsetsResult.ListOffsetsResultInfo earliest = Future.call(getAdminClient(clusterId).listOffsets(
                         Collections.singletonMap(partition, OffsetSpec.earliest())).partitionResult(partition));
-                ListOffsetsResult.ListOffsetsResultInfo latest = Future.call(getClusterAdmin(clusterId).adminClient().listOffsets(
+                ListOffsetsResult.ListOffsetsResultInfo latest = Future.call(getAdminClient(clusterId).listOffsets(
                         Collections.singletonMap(partition, OffsetSpec.latest())).partitionResult(partition));
 
                 totalMessageCount.addAndGet(latest.offset() - earliest.offset());
@@ -136,7 +164,7 @@ public class KafkaWrapper {
     }
 
     public long getLatestOffset(String clusterId, TopicPartition tp) {
-        return Future.call(getClusterAdmin(clusterId).adminClient()
+        return Future.call(getAdminClient(clusterId)
                         .listOffsets(Collections.singletonMap(tp, OffsetSpec.latest()))
                         .partitionResult(tp))
                 .offset();
@@ -180,9 +208,10 @@ public class KafkaWrapper {
         consumer.seekToEnd(Collections.singletonList(topicPartition));
     }
 
+    @Cacheable(cacheNames = CacheManagerConfig.CacheOwnerKey.TOPIC_ALL, key = "{#root.methodName,#clusterId,#hideInternal}", unless = "#result == null")
     public List<String> getAllTopics(String clusterId, boolean hideInternal) {
         return Future.call(
-                        getClusterAdmin(clusterId).adminClient()
+                        getAdminClient(clusterId)
                                 .listTopics(new ListTopicsOptions().listInternal(hideInternal))
                                 .names()
                 )
@@ -191,21 +220,21 @@ public class KafkaWrapper {
 
     public ListOffsetsResult.ListOffsetsResultInfo getOffsetForPartition(String clusterId, TopicPartition topicPartition, OffsetSpec spec) throws ExecutionException, InterruptedException {
         return Future.call(
-                getClusterAdmin(clusterId).adminClient()
+                getAdminClient(clusterId)
                         .listOffsets(Collections.singletonMap(topicPartition, spec))
                         .partitionResult(topicPartition)
         );
     }
 
     public ListOffsetsResult.ListOffsetsResultInfo getOffsetForTimestamp(String clusterId, TopicPartition topicPartition, long timestamp) throws ExecutionException, InterruptedException {
-        return Future.call(getClusterAdmin(clusterId).adminClient()
+        return Future.call(getAdminClient(clusterId)
                 .listOffsets(Collections.singletonMap(topicPartition, OffsetSpec.forTimestamp(timestamp)))
                 .partitionResult(topicPartition));
     }
 
     public List<TopicPartitionInfo> getPartitionsOfTopic(String clusterId, String topic) {
         return Future.call(
-                        getClusterAdmin(clusterId).adminClient()
+                        getAdminClient(clusterId)
                                 .describeTopics(Collections.singletonList(topic))
                                 .topicNameValues().get(topic)
                 )
@@ -215,7 +244,7 @@ public class KafkaWrapper {
 
     public long getCurrentOffsetOfPartition(String clusterId, String groupId, TopicPartition topicPartition) {
         Map<TopicPartition, OffsetAndMetadata> currentOffsets = Future.call(
-                getClusterAdmin(clusterId).adminClient()
+                getAdminClient(clusterId)
                         .listConsumerGroupOffsets(groupId)
                         .partitionsToOffsetAndMetadata()
         );
@@ -225,7 +254,7 @@ public class KafkaWrapper {
 
     public void changeOffsetOfConsumerGroup(String groupId, String clusterId, TopicPartition topicPartition, long targetOffset) {
         Future.call(
-                getClusterAdmin(clusterId).adminClient()
+                getAdminClient(clusterId)
                         .alterConsumerGroupOffsets(groupId, Collections.singletonMap(topicPartition, new OffsetAndMetadata(targetOffset)))
                         .all()
         );
@@ -233,10 +262,17 @@ public class KafkaWrapper {
 
     public TopicDescription describeTopic(String clusterId, String topicName) {
         return Future.call(
-                getClusterAdmin(clusterId).adminClient()
+                getAdminClient(clusterId)
                         .describeTopics(Collections.singletonList(topicName))
                         .topicNameValues()
                         .get(topicName)
         );
+    }
+
+    @Cacheable(cacheNames = CacheManagerConfig.CacheOwnerKey.CONSUMER_GROUPS_DESCRIBE, key = "{#root.methodName,#clusterId}", unless = "#result == null")
+    public Map<String, ConsumerGroupDescription> describeConsumerGroups(String clusterId) {
+        List<String> groupIds = listConsumerGroupIds(clusterId);
+        return Future.call(getAdminClient(clusterId).
+                describeConsumerGroups(groupIds).all());
     }
 }

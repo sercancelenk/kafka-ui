@@ -37,7 +37,6 @@ public class Future {
     }
 
     public static <T> T call(KafkaFuture<T> future) {
-        long startTime = System.currentTimeMillis();
         T call;
 
         try {
@@ -53,7 +52,6 @@ public class Future {
     }
 
     public static <I, R> List<R> forkJoin(Function<I, R> func, List<I> input) {
-
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             // Parallel processing using virtual threads
             return input.stream()

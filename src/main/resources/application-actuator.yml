@@ -1,0 +1,10 @@
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+      base-path: /_monitoring
+    health:
+      show-details: always
+      circuitbreakers.enabled: true
+

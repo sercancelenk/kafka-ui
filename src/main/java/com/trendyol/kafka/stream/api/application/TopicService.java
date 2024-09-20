@@ -1,12 +1,9 @@
 package com.trendyol.kafka.stream.api.application;
 
-import com.google.common.cache.CacheLoader;
-import com.trendyol.kafka.stream.api.adapters.cache.guava.CacheService;
 import com.trendyol.kafka.stream.api.adapters.kafka.manager.KafkaWrapper;
 import com.trendyol.kafka.stream.api.domain.Models;
-import com.trendyol.kafka.stream.api.infra.utils.Future;
+import com.trendyol.kafka.stream.api.infra.CacheManagerConfig;
 import com.trendyol.kafka.stream.api.infra.utils.ThreadLocalPriorityQueue;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.*;
@@ -15,61 +12,29 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.config.TopicConfig;
-import org.springframework.lang.NonNull;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Nonnull;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class TopicService {
-    private final Map<String, Models.ClusterAdminInfo> clusterAdminMap;
     private final KafkaWrapper kafkaWrapper;
-    private final Integer cacheTimeoutSeconds = 5;
-    private final CacheService cacheService;
-
-    @PostConstruct
-    public void init() {
-        cacheService.createCache(CacheService.CacheOwnerKey.TOPIC_INFO,
-                cacheTimeoutSeconds, TimeUnit.SECONDS,
-                new CacheLoader<>() {
-                    @Override
-                    @Nonnull
-                    public Models.TopicInfo load(@NonNull String compositeKey) throws ExecutionException, InterruptedException {
-                        String[] keyParts = compositeKey.split(":", 5);
-                        String clusterId = keyParts[2];
-                        String topicName = keyParts[4];
-                        return getTopicInfoUnCached(clusterId, topicName);
-                    }
-                });
-        cacheService.createCache(CacheService.CacheOwnerKey.TOPICS_ALL,
-                cacheTimeoutSeconds, TimeUnit.SECONDS,
-                new CacheLoader<>() {
-                    @Override
-                    @Nonnull
-                    public List<String> load(@Nonnull String allTopicsByClusterIdKey) {
-                        String[] keyParts = allTopicsByClusterIdKey.split(":", 3);
-                        String clusterId = keyParts[2];
-                        return kafkaWrapper.getAllTopics(clusterId, true);
-                    }
-                });
-
-    }
+    private final Integer cacheTimeoutSeconds = 1;
 
     public List<Models.MessageInfo> getTopMessagesFromTopic(String clusterId, String topic, int maxMessagesToFetch) throws InterruptedException {
         KafkaConsumer<String, String> consumer = null;
         try {
             PriorityQueue<Models.MessageInfo> topMessagesQueue = ThreadLocalPriorityQueue.getPriorityQueue();
-            consumer = clusterAdminMap.get(clusterId).consumerPool().borrowConsumer();
+            consumer = kafkaWrapper.getConsumerPool(clusterId).borrowConsumer();
 
             List<TopicPartition> partitions = kafkaWrapper.getTopicPartitions(topic, consumer);
 
@@ -107,7 +72,7 @@ public class TopicService {
         } finally {
             // Return the consumer to the pool after processing
             if (consumer != null) {
-                clusterAdminMap.get(clusterId).consumerPool().returnConsumer(consumer);
+                kafkaWrapper.getConsumerPool(clusterId).returnConsumer(consumer);
             }
         }
     }
@@ -115,7 +80,7 @@ public class TopicService {
     public Models.MessageInfo getOneMessageFromTopic(String clusterId, String topic, Optional<Integer> partitionOpt, Optional<Long> offsetOpt) throws InterruptedException {
         KafkaConsumer<String, String> consumer = null;
         try {
-            consumer = clusterAdminMap.get(clusterId).consumerPool().borrowConsumer();
+            consumer = kafkaWrapper.getConsumerPool(clusterId).borrowConsumer();
 
             // If partition is provided
             if (partitionOpt.isPresent()) {
@@ -143,17 +108,14 @@ public class TopicService {
         } finally {
             // Return the consumer to the pool after processing
             if (consumer != null) {
-                clusterAdminMap.get(clusterId).consumerPool().returnConsumer(consumer);
+                kafkaWrapper.getConsumerPool(clusterId).returnConsumer(consumer);
             }
         }
     }
 
-    public Models.TopicInfo getTopicInfo(String clusterId, String topicName) throws ExecutionException {
-        return cacheService.getFromCache(CacheService.CacheOwnerKey.TOPIC_INFO, clusterId, topicName);
-    }
-
     public Map<String, Long> getLagCount(String clusterId, String topicName, String groupId) throws ExecutionException, InterruptedException {
-        try (AdminClient adminClient = clusterAdminMap.get(clusterId).adminClient()) {
+        try {
+            AdminClient adminClient = kafkaWrapper.getAdminClient(clusterId);
             Map<String, Long> lagCount = new HashMap<>();
 
             TopicDescription topicDescription = adminClient.describeTopics(Collections.singletonList(topicName))
@@ -181,28 +143,29 @@ public class TopicService {
                 }
             }
             return lagCount;
+        } catch (Exception ex) {
+            log.error("Exception occurred while getting lag. {}", ex.getMessage(), ex);
+            return Map.of();
         }
     }
 
-    private Models.TopicInfo getTopicInfoUnCached(String clusterId, String topicName) throws ExecutionException, InterruptedException {
+
+    @Cacheable(cacheNames = CacheManagerConfig.CacheOwnerKey.TOPIC_INFO, key = "{#root.methodName,#clusterId,#topic}", unless = "#result == null")
+    public Models.TopicInfo getTopicInfo(String clusterId, String topic) {
         Models.TopicInfo.TopicInfoBuilder builder = Models.TopicInfo.builder();
         Map<String, Object> topicConfig = new HashMap<>();
 
         builder.clusterId(clusterId);
-        builder.name(topicName);
+        builder.name(topic);
 
         // Get the topic description to fetch partition information
-        TopicDescription topicDescription = kafkaWrapper.describeTopic(clusterId, topicName);
+        TopicDescription topicDescription = kafkaWrapper.describeTopic(clusterId, topic);
         int partitionCount = topicDescription.partitions().size();
         builder.partitionCount(partitionCount);
 
+
         // Fetch the retention period
-        ConfigResource configResource = new ConfigResource(ConfigResource.Type.TOPIC, topicName);
-        Config config = clusterAdminMap.get(clusterId).adminClient()
-                .describeConfigs(Collections.singletonList(configResource))
-                .values()
-                .get(configResource)
-                .get();
+        Config config = kafkaWrapper.describeTopicConfig(clusterId, topic);
 
         String retentionMs = config.get(TopicConfig.RETENTION_MS_CONFIG).value();
         long retentionDay = Long.parseLong(retentionMs) / (1000 * 60 * 60 * 24);  // Convert retention in ms to days
@@ -212,21 +175,15 @@ public class TopicService {
         AtomicLong totalMessageCount = new AtomicLong(0L);
         Map<String, Integer> replicas = new ConcurrentHashMap<>();
 
-        Future.forkJoin((tpi) -> {
-            try {
-                TopicPartition partition = new TopicPartition(topicName, tpi.partition());
-                ListOffsetsResult.ListOffsetsResultInfo earliest = clusterAdminMap.get(clusterId).adminClient().listOffsets(
-                        Collections.singletonMap(partition, OffsetSpec.earliest())).partitionResult(partition).get();
-                ListOffsetsResult.ListOffsetsResultInfo latest = clusterAdminMap.get(clusterId).adminClient().listOffsets(
-                        Collections.singletonMap(partition, OffsetSpec.latest())).partitionResult(partition).get();
+        for (TopicPartitionInfo tpi : topicDescription.partitions()) {
+            TopicPartition partition = new TopicPartition(topic, tpi.partition());
+            ListOffsetsResult.ListOffsetsResultInfo earliest = kafkaWrapper.listOffsets(clusterId, partition, OffsetSpec.earliest());
+            ListOffsetsResult.ListOffsetsResultInfo latest = kafkaWrapper.listOffsets(clusterId, partition, OffsetSpec.latest());
 
-                long partitionMessageCount = latest.offset() - earliest.offset();
-                totalMessageCount.addAndGet(partitionMessageCount);
-                tpi.replicas().forEach(node -> replicas.putIfAbsent(node.host() + ":" + node.port(), 1));
-            } catch (Exception ex) {
-                log.info("Execute func has an error while processing the partition {}", tpi.partition(), ex);
-            }
-        }, topicDescription.partitions());
+            long partitionMessageCount = latest.offset() - earliest.offset();
+            totalMessageCount.addAndGet(partitionMessageCount);
+            tpi.replicas().forEach(node -> replicas.putIfAbsent(node.host() + ":" + node.port(), 1));
+        }
 
         builder.messageCount(totalMessageCount.get());
         builder.replicas(replicas.size());
@@ -237,8 +194,9 @@ public class TopicService {
         return builder.build();
     }
 
-    public Models.PaginatedResponse<String> getTopicListUnCached(String clusterId, int page, int size) throws ExecutionException {
-        List<String> allTopics = cacheService.getFromCache(CacheService.CacheOwnerKey.TOPICS_ALL, clusterId);
+
+    public Models.PaginatedResponse<String> getTopicList(String clusterId, int page, int size) throws ExecutionException {
+        List<String> allTopics = kafkaWrapper.getAllTopics(clusterId, true);
 
         int totalItems = allTopics.size();
         int totalPages = (int) Math.ceil((double) totalItems / size);

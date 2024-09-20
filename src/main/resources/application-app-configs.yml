@@ -1,0 +1,11 @@
+app:
+  max-threads:
+    consumerGroupByTopic: 50
+  cache:
+    timeouts:
+      CONSUMER_GROUP_ALL_CACHE: PT2M
+      CONSUMER_GROUP_BY_GROUP: PT2M
+      CONSUMER_GROUP_BY_TOPIC: PT2M
+      CONSUMER_GROUPS_DESCRIBE: PT2M
+      TOPIC_ALL: PT2M
+      TOPIC_INFO: PT2M

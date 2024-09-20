@@ -2,12 +2,7 @@ package com.trendyol.kafka.stream.api.adapters.rest;
 
 import com.trendyol.kafka.stream.api.domain.Models;
 import com.trendyol.kafka.stream.api.application.TopicService;
-import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -65,7 +60,7 @@ public class TopicController {
 
             @Parameter(description = "Size of the page (number of topics per page)", example = "10")
             @RequestParam(defaultValue = "10") int size
-    ) throws ExecutionException, InterruptedException {
-        return kafkaTopMessagesService.getTopicListUnCached(clusterId, page, size);
+    ) throws ExecutionException {
+        return kafkaTopMessagesService.getTopicList(clusterId, page, size);
     }
 }

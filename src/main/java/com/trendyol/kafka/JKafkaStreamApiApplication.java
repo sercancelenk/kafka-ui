@@ -38,8 +38,9 @@ public class JKafkaStreamApiApplication {
     @Bean
     public CommandLineRunner runner(ApplicationContext applicationContext, ObjectMapper objectMapper) {
         return args -> {
-//            Thread vThread5 = Thread.ofVirtual().start(() -> produceMessages("topic5", objectMapper));
-//            vThread5.join();
+//            Thread.ofVirtual().start(() -> produceMessages("topic1", objectMapper)).join();
+//            Thread.ofVirtual().start(() -> produceMessages("topic2", objectMapper)).join();
+
         };
 
     }
